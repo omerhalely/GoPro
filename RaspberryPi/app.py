@@ -1,0 +1,412 @@
+from flask import Flask, jsonify, request, render_template, send_from_directory
+import threading, time, os, subprocess, platform
+
+# Try imports of capture image and video
+try:
+    from ImageCapture import image_capture
+except Exception:
+    image_capture = None
+try:
+    from VideoCapture import video_capture
+except Exception:
+    video_capture = None
+
+
+
+app = Flask(__name__, static_folder="static", template_folder="templates")
+
+# ── Settings ──────────────────────────────────────────────────────────────────
+DEFAULT_SAVE_DIR = "./outputs"   # fixed default output directory
+
+# ── DEV toggle ────────────────────────────────────────────────────────────────
+DEVELOPMENT_MODE = True  # ← set False on the Raspberry Pi for real actions
+
+# ── Shell console settings ────────────────────────────────────────────────────
+SHELL_ENABLED = True               # ⚠️ Anyone with page access can run commands
+SHELL_TIMEOUT_DEFAULT = 15         # seconds
+SHELL_MAX_CHARS = 100_000          # cap combined stdout/stderr size
+
+# ── Mutable runtime config (server-side) ──────────────────────────────────────
+CURRENT_SAVE_DIR = DEFAULT_SAVE_DIR
+LED_ON = False   # tracked state; no-op in DEVELOPMENT_MODE
+
+# Tiny random float without importing random
+def randf(lo, hi):
+    r = int.from_bytes(os.urandom(8), "big") / (1 << 64)
+    return lo + (hi - lo) * r
+
+# ── Global state ──────────────────────────────────────────────────────────────
+_state_lock = threading.Lock()
+_is_running = False
+_stop_evt = threading.Event()
+_capture_thread = None
+_last_start_ts = None
+
+# CPU utilization bookkeeping (only used when not in DEV)
+_prev_total = None
+_prev_idle  = None
+
+# ── Capture thread runner (stub while developing) ─────────────────────────────
+def _run_capture_thread():
+    # snapshot the directory at start (avoids races if CURRENT_SAVE_DIR changes mid-run)
+    save_dir = os.path.abspath(CURRENT_SAVE_DIR)
+
+    try:
+        # ensure output dir exists
+        if not os.path.exists(save_dir):
+            try:
+                os.makedirs(save_dir, exist_ok=True)
+                print(f"[capture] Created output directory: {save_dir}")
+            except Exception as e:
+                print(f"[capture][error] Could not create output directory '{save_dir}': {e}")
+                return  # abort the thread gracefully
+
+        print(f"[capture] Saving video to: {save_dir}")
+
+        if DEVELOPMENT_MODE:
+            while not _stop_evt.is_set():
+                time.sleep(0.25)
+        else:
+            video_capture(_stop_evt, output_dir=save_dir)  # plug in on the Pi
+
+    finally:
+        # mark not running even on error or stop
+        with _state_lock:
+            global _is_running
+            _is_running = False
+        _stop_evt.clear()
+
+
+# ── System metrics (DEV stubs + real on Pi) ───────────────────────────────────
+def _read_cpu_temp_c():
+    if DEVELOPMENT_MODE:
+        return round(randf(38.0, 72.0), 1)
+    try:
+        with open("/sys/class/thermal/thermal_zone0/temp") as f:
+            return float(f.read().strip()) / 1000.0
+    except Exception:
+        return None
+
+def _read_gpu_temp_c():
+    if DEVELOPMENT_MODE:
+        return round(randf(40.0, 70.0), 1)
+    try:
+        out = subprocess.check_output(["vcgencmd", "measure_temp"], text=True, timeout=1)
+        if "temp=" in out:
+            return float(out.split("temp=")[1].split("'")[0])
+    except Exception:
+        pass
+    return None
+
+def _read_cpu_util_percent():
+    if DEVELOPMENT_MODE:
+        base = randf(8.0, 35.0)
+        spike = randf(0, 1)
+        return round(base + (50.0 if spike > 0.95 else 0.0), 1)
+    global _prev_total, _prev_idle
+    try:
+        with open("/proc/stat") as f:
+            line = f.readline()
+        if not line.startswith("cpu "):
+            return None
+        parts = [float(x) for x in line.split()[1:11]]
+        user, nice, system, idle, iowait, irq, softirq, steal, *_ = (parts + [0]*10)[:8]
+        idle_all = idle + iowait
+        non_idle = user + nice + system + irq + softirq + steal
+        total = idle_all + non_idle
+        if _prev_total is None:
+            _prev_total, _prev_idle = total, idle_all
+            return None
+        totald = total - _prev_total
+        idled  = idle_all - _prev_idle
+        _prev_total, _prev_idle = total, idle_all
+        if totald <= 0:
+            return None
+        return max(0.0, min(100.0, (totald - idled) * 100.0 / totald))
+    except Exception:
+        return None
+
+def _read_ram_percent_used():
+    if DEVELOPMENT_MODE:
+        return round(randf(20.0, 85.0), 1)
+    try:
+        meminfo = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                k, v = line.split(":")
+                meminfo[k] = float(v.strip().split()[0])  # kB
+        total = meminfo.get("MemTotal")
+        avail = meminfo.get("MemAvailable")
+        if not total or not avail:
+            return None
+        used = total - avail
+        return used * 100.0 / total
+    except Exception:
+        return None
+
+def _read_disk_free_percent(path):
+    if DEVELOPMENT_MODE:
+        return round(randf(35.0, 95.0), 1)
+    try:
+        st = os.statvfs(path)
+        total = st.f_blocks * st.f_frsize
+        free  = st.f_bavail * st.f_frsize
+        if total <= 0:
+            return None
+        return free * 100.0 / total
+    except Exception:
+        return None
+
+def _read_cpu_freq_mhz():
+    if DEVELOPMENT_MODE:
+        return round(randf(600.0, 1500.0), 0)
+    for p in (
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq",
+        "/sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq",
+    ):
+        try:
+            with open(p) as f:
+                v = f.read().strip()
+                return (int(v) if v.isdigit() else float(v)) / 1000.0
+        except Exception:
+            continue
+    return None
+
+def _set_led(on: bool):
+    global LED_ON
+    LED_ON = bool(on)
+    if DEVELOPMENT_MODE:
+        return
+    try:
+        # TODO: implement GPIO control (RPi.GPIO / gpiozero)
+        pass
+    except Exception:
+        pass
+
+def _read_voltage_current():
+    if DEVELOPMENT_MODE:
+        volts = round(randf(4.80, 5.20), 3)
+        amps  = round(randf(0.10, 2.50), 3)
+        return amps, volts
+    try:
+        # TODO: implement sensor reads on the Pi (e.g., INA219/INA260)
+        return None, None
+    except Exception:
+        return None, None
+
+# ── API endpoints (capture) ───────────────────────────────────────────────────
+@app.get("/start")
+def start_capture():
+    global _capture_thread, _is_running, _last_start_ts
+    with _state_lock:
+        if _is_running:
+            return jsonify({"error": "Capture already running"}), 409
+        _stop_evt.clear()
+        _is_running = True
+        _last_start_ts = int(time.time())
+        _capture_thread = threading.Thread(target=_run_capture_thread, daemon=True)
+        _capture_thread.start()
+    return jsonify({"status": "started", "started_ts": _last_start_ts, "save_dir": CURRENT_SAVE_DIR})
+
+@app.get("/stop")
+def stop_capture():
+    _stop_evt.set()
+    return jsonify({"status": "stop signaled"})
+
+@app.get("/status")
+def status():
+    with _state_lock:
+        return jsonify({"running": _is_running, "started_ts": _last_start_ts, "save_dir": CURRENT_SAVE_DIR})
+
+@app.post("/capture_image")
+def capture_image_endpoint():
+    """
+    Captures a still image and saves it under CURRENT_SAVE_DIR.
+    Returns: {"ok": bool, "path": "<full path>", "dev": bool}
+    """
+    save_dir = os.path.abspath(CURRENT_SAVE_DIR)
+
+    # ensure directory exists (same pattern as video)
+    if not os.path.exists(save_dir):
+        try:
+            os.makedirs(save_dir, exist_ok=True)
+            print(f"[still] Created output directory: {save_dir}")
+        except Exception as e:
+            return jsonify({"ok": False, "error": f"Cannot create directory: {e}"}), 500
+
+    # call real capture if available
+    try:
+        if image_capture is not None and not DEVELOPMENT_MODE:
+            path = image_capture(save_dir)  # <-- your real function must return full path
+            if not path:
+                return jsonify({"ok": False, "error": "capture_image() returned no path"}), 500
+            return jsonify({"ok": True, "path": path, "dev": False})
+        else:
+            # DEV fallback: create a dummy jpg file
+            ts = int(time.time())
+            fname = f"snapshot_{ts}.jpg"
+            fpath = os.path.join(save_dir, fname)
+            return jsonify({"ok": True, "path": fpath, "dev": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+# ── Config endpoints ──────────────────────────────────────────────────────────
+@app.get("/config")
+def get_config():
+    return jsonify({
+        "save_dir_current": CURRENT_SAVE_DIR,
+        "save_dir_default": DEFAULT_SAVE_DIR,
+        "led_on": LED_ON,
+        "development_mode": DEVELOPMENT_MODE,
+    })
+
+@app.post("/config")
+def update_config():
+    global CURRENT_SAVE_DIR
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+    except Exception:
+        body = {}
+
+    updated = {}
+
+    save_dir = body.get("save_dir")
+    if isinstance(save_dir, str) and save_dir.strip():
+        CURRENT_SAVE_DIR = save_dir.strip()
+        updated["save_dir_current"] = CURRENT_SAVE_DIR
+
+    if "led_on" in body:
+        _set_led(bool(body.get("led_on")))
+        updated["led_on"] = LED_ON
+
+    cfg = {
+        "save_dir_current": CURRENT_SAVE_DIR,
+        "save_dir_default": DEFAULT_SAVE_DIR,
+        "led_on": LED_ON,
+        "development_mode": DEVELOPMENT_MODE,
+        "updated": updated
+    }
+    return jsonify(cfg)
+
+# ── Power endpoint (restart/shutdown) ─────────────────────────────────────────
+@app.post("/power")
+def power_action():
+    """
+    Body: {"action": "reboot" | "shutdown"}
+    DEV mode: simulate only.
+    PROD: run real commands (requires sudo privileges).
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+    except Exception:
+        body = {}
+    action = (body.get("action") or "").lower()
+    if action not in ("reboot", "shutdown"):
+        return jsonify({"ok": False, "error": "Invalid action (use 'reboot' or 'shutdown')"}), 400
+
+    if DEVELOPMENT_MODE:
+        return jsonify({"ok": True, "dev": True, "action": action, "message": f"Simulated {action} in DEV mode."})
+
+    try:
+        if action == "reboot":
+            cmd = ["sudo", "reboot"]
+        else:
+            cmd = ["sudo", "shutdown", "-h", "now"]
+        subprocess.Popen(cmd)  # do not wait
+        return jsonify({"ok": True, "dev": False, "action": action, "message": f"{action} command sent."})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+# ── API endpoint: live metrics ────────────────────────────────────────────────
+@app.get("/metrics")
+def metrics():
+    ts = time.time()
+    cpu_temp = _read_cpu_temp_c()
+    gpu_temp = _read_gpu_temp_c()
+    cpu_util = _read_cpu_util_percent()
+    ram_used = _read_ram_percent_used()
+    disk_free = _read_disk_free_percent(CURRENT_SAVE_DIR)
+    cpu_mhz = _read_cpu_freq_mhz()
+    amps, volts = _read_voltage_current()
+
+    def rnd(x, n=2): return None if x is None else round(x, n)
+    return jsonify({
+        "ts": ts,
+        "sensors": {"current_a": rnd(amps, 3), "voltage_v": rnd(volts, 3)},
+        "cpu": {"temp_c": rnd(cpu_temp, 1), "util_pct": rnd(cpu_util, 1), "freq_mhz": rnd(cpu_mhz, 0)},
+        "gpu": {"temp_c": rnd(gpu_temp, 1)},
+        "ram": {"used_pct": rnd(ram_used, 1)},
+        "disk": {"free_pct": rnd(disk_free, 1), "path": CURRENT_SAVE_DIR}
+    })
+
+# ── API endpoint: shell command execution ─────────────────────────────────────
+@app.post("/shell")
+def run_shell():
+    if not SHELL_ENABLED:
+        return jsonify({"error": "Shell disabled on server"}), 403
+
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+    except Exception:
+        body = {}
+
+    cmd = (body.get("cmd") or "").strip()
+    if not cmd:
+        return jsonify({"error": "Missing 'cmd'"}), 400
+
+    timeout = body.get("timeout") or SHELL_TIMEOUT_DEFAULT
+    try:
+        timeout = max(1, min(int(timeout), 300))  # 1..300s
+    except Exception:
+        timeout = SHELL_TIMEOUT_DEFAULT
+
+    start = time.time()
+    os_name = platform.system().lower()
+    try:
+        if "windows" in os_name:
+            exec_cmd = ["cmd", "/c", cmd]
+            res = subprocess.run(
+                exec_cmd, capture_output=True, text=True, timeout=timeout,
+                encoding="oem", errors="replace"
+            )
+        else:
+            exec_cmd = ["bash", "-lc", cmd]
+            res = subprocess.run(
+                exec_cmd, capture_output=True, text=True, timeout=timeout,
+                encoding="utf-8", errors="replace"
+            )
+        elapsed = time.time() - start
+    except subprocess.TimeoutExpired as e:
+        return jsonify({
+            "ok": False, "timeout": True, "code": None,
+            "elapsed_sec": round(time.time() - start, 3),
+            "stdout": (e.stdout or "")[:SHELL_MAX_CHARS],
+            "stderr": (e.stderr or "")[:SHELL_MAX_CHARS],
+            "ran": exec_cmd if 'exec_cmd' in locals() else cmd,
+        }), 504
+
+    stdout = (res.stdout or "")[:SHELL_MAX_CHARS]
+    stderr = (res.stderr or "")[:SHELL_MAX_CHARS]
+
+    return jsonify({
+        "ok": res.returncode == 0,
+        "code": res.returncode,
+        "elapsed_sec": round(elapsed, 3),
+        "stdout": stdout,
+        "stderr": stderr,
+        "ran": exec_cmd,
+    })
+
+# ── Web UI ────────────────────────────────────────────────────────────────────
+@app.get("/")
+def index():
+    return render_template("index.html")
+
+# Static files (served by Flask automatically via app.static_folder)
+@app.get("/static/<path:path>")
+def send_static(path):
+    return send_from_directory(app.static_folder, path)
+
+# Run: python app.py
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000, debug=True)

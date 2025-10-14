@@ -1,11 +1,12 @@
-# from picamera2 import Picamera2
-# import RPi.GPIO as GPIO
+from picamera2 import Picamera2
+import RPi.GPIO as GPIO
 import cv2
 import psutil
 import threading
 import queue
 import time
 import os
+from datetime import datetime
 
 
 frame_queue = queue.Queue(maxsize=500)
@@ -17,8 +18,17 @@ def get_available_RAM():
     return available, total
 
 
-def writer(output_size, fps):
-    output_path = os.path.join(os.getcwd(), "outputs", "output.avi")
+def writer(output_dir, output_size, fps):
+    videos_path = os.path.join(output_dir, "videos")
+    if not os.path.exists(videos_path):
+        os.mkdir(videos_path)
+    current_date_str = datetime.now().strftime("%Y-%m-%d")
+    current_date_video_path = os.path.join(videos_path, current_date_str)
+    if not os.path.exists(current_date_video_path):
+        os.mkdir(current_date_video_path)
+    current_time = datetime.now().strftime("%H-%M-%S")
+    output_path = os.path.join(current_date_video_path, f"{current_time}.avi")
+
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out = cv2.VideoWriter(output_path, fourcc, fps, output_size)
     
@@ -32,7 +42,7 @@ def writer(output_size, fps):
     out.release()
 
 
-def video_capture(stop_evt: threading.Event):
+def video_capture(stop_evt: threading.Event, output_dir: str):
     picam2 = Picamera2()
     
     size = (int(640 // 2), int(480 // 2))
@@ -57,7 +67,7 @@ def video_capture(stop_evt: threading.Event):
     picam2.configure(config)
     picam2.start()
 
-    t = threading.Thread(target=writer, args=(size, fps))
+    t = threading.Thread(target=writer, args=(output_dir, size, fps))
     t.start()
     prev_available, total = get_available_RAM()
     while not stop_evt.is_set():

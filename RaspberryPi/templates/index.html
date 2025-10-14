@@ -1,0 +1,223 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PiCam Controller</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <!-- Theme toggle (top-left) -->
+  <button id="theme-toggle" class="theme-btn" aria-label="Toggle theme" title="Toggle theme">
+    <span id="theme-icon" aria-hidden="true">🌙</span>
+  </button>
+
+  <div class="wrap">
+    <h1>🎥 PiCam Controller</h1>
+
+    <div class="row">
+      <div class="card">
+        <h2>Controls</h2>
+
+        <div id="status" class="status warn">Checking status…</div>
+
+        <!-- Start / Stop -->
+        <div class="grid2">
+          <button class="btn start" onclick="startCapture()">START</button>
+          <button class="btn stop"  onclick="stopCapture()">STOP</button>
+        </div>
+
+        <!-- Capture Image (NEW) -->
+        <div class="grid2" style="margin-top:10px">
+          <button class="btn start" onclick="captureStill()">📸 Capture Image</button>
+          <div class="muted small">
+            Last image: <span id="last_image_time" class="mono">—</span>
+            <span id="img_captured_badge" class="badge hide">Saved</span>
+          </div>
+        </div>
+
+        <div class="muted small" style="margin-top:10px">
+          Saving to: <span class="mono" id="save_dir">—</span>
+        </div>
+        <pre class="muted mono" id="log"></pre>
+        <div class="footer small">Software-stop only • Non-blocking capture thread</div>
+      </div>
+
+      <div class="card">
+        <h2>Temperatures & Storage</h2>
+        <div class="grid2">
+          <div class="tile">
+            <div>CPU Temp</div>
+            <div class="kpi" id="cpu_temp">—<span class="unit">°C</span></div>
+          </div>
+          <div class="tile">
+            <div>GPU Temp</div>
+            <div class="kpi" id="gpu_temp">—<span class="unit">°C</span></div>
+          </div>
+          <div class="tile donut">
+            <svg viewBox="0 0 36 36">
+              <defs>
+                <linearGradient id="grad"><stop offset="0%" stop-color="#2dd4bf"/><stop offset="100%" stop-color="#60a5fa"/></linearGradient>
+              </defs>
+              <path d="M18 2 a16 16 0 1 1 0 32 a16 16 0 1 1 0 -32" fill="none" stroke="#1f2633" stroke-width="4"/>
+              <path id="donut" d="M18 2 a16 16 0 1 1 0 32 a16 16 0 1 1 0 -32"
+                    fill="none" stroke="url(#grad)" stroke-width="4" stroke-linecap="round"
+                    stroke-dasharray="0 100"/>
+            </svg>
+            <div>
+              <div class="kpi" id="disk_free">—<span class="unit">%</span></div>
+              <div class="small">Free on <span class="mono" id="disk_path">—</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:14px">
+      <div class="card">
+        <h2>
+          Power
+          <span class="chips">
+            <span class="muted small">Window:</span>
+            <button class="chip active" data-win="30">30s</button>
+            <button class="chip" data-win="60">1m</button>
+            <button class="chip" data-win="300">5m</button>
+          </span>
+        </h2>
+        <div class="grid2">
+          <div class="tile">
+            <div>Current (A)</div>
+            <div class="canvasBox"><canvas id="cur" class="spark"></canvas></div>
+            <div class="small">Live: <span id="cur_now">—</span> A</div>
+          </div>
+          <div class="tile">
+            <div>Voltage (V)</div>
+            <div class="canvasBox"><canvas id="vol" class="spark"></canvas></div>
+            <div class="small">Live: <span id="vol_now">—</span> V</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>
+          System
+          <span class="chips">
+            <span class="muted small">Window:</span>
+            <button class="chip active" data-win="30">30s</button>
+            <button class="chip" data-win="60">1m</button>
+            <button class="chip" data-win="300">5m</button>
+          </span>
+        </h2>
+        <div class="grid2">
+          <div class="tile">
+            <div>CPU Utilization (%)</div>
+            <div class="canvasBox"><canvas id="cpu" class="spark"></canvas></div>
+            <div class="small">Live: <span id="cpu_now">—</span>%</div>
+          </div>
+          <div class="tile">
+            <div>RAM Used (%)</div>
+            <div class="canvasBox"><canvas id="ram" class="spark"></canvas></div>
+            <div class="small">Live: <span id="ram_now">—</span>%</div>
+          </div>
+          <div class="tile" style="grid-column: span 2">
+            <div>CPU Clock (MHz)</div>
+            <div class="canvasBox"><canvas id="mhz" class="spark"></canvas></div>
+            <div class="small">Live: <span id="mhz_now">—</span> MHz</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Right-side vertical rail (menu) ===== -->
+  <div id="right-rail" aria-label="Quick menu">
+    <!-- Power -->
+    <button id="power-toggle" class="fab" aria-label="Power" title="Power">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+           xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M12 3v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <path d="M6.8 7.8a7 7 0 1 0 10.4 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </button>
+
+    <!-- Shell -->
+    <button id="shell-toggle" class="fab" aria-label="Toggle shell" title="Command Shell">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+           xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.6" />
+        <path d="M7 9l3 3-3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M12.5 15H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+      </svg>
+    </button>
+
+    <!-- Settings -->
+    <button id="config-toggle" class="fab" aria-label="Open settings" title="Settings">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+           xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="currentColor" stroke-width="1.6" />
+        <path d="M19 12a7 7 0 0 0-.09-1.1l1.98-1.54-2-3.46-2.35.95A7.02 7.02 0 0 0 14.2 5L14 3h-4l-.2 2a7.02 7.02 0 0 0-2.34.85l-2.36-.95-2 3.46 1.98 1.54A7 7 0 0 0 5 12c0 .37.03.73.09 1.1l-1.98 1.54 2 3.46 2.35-.95c.72.42 1.51.72 2.34.85l.2 2h4l.2-2c.83-.13 1.62-.43 2.34-.85l2.35.95 2-3.46-1.98-1.54c.06-.36.09-.73.09-1.1Z"
+              stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Power popover -->
+  <div id="power-pop" role="dialog" aria-modal="false" aria-label="Power actions">
+    <button data-action="reboot">Restart</button>
+    <button data-action="shutdown">Shut down</button>
+  </div>
+
+  <!-- ===== Shell Drawer ===== -->
+  <div id="shell-drawer" class="drawer" aria-hidden="true">
+    <div class="shell-head">
+      <strong style="font-size:14px; letter-spacing:.3px;">Command Shell</strong>
+      <div class="shell-actions">
+        <button id="shell-clear" class="shell-btn" title="Clear output">Clear</button>
+      </div>
+    </div>
+
+    <div class="shell-row">
+      <input id="shell-input" type="text" class="shell-inp" placeholder="Enter command…" />
+      <input id="shell-timeout" type="number" min="1" max="300" value="15"
+             class="shell-inp" style="width:92px" title="Timeout (s)" />
+      <button id="shell-run" class="shell-run">Run</button>
+    </div>
+
+    <pre id="shell-output" class="shell-out"></pre>
+    <div id="shell-status" class="shell-status"></div>
+  </div>
+
+  <!-- ===== Config Drawer ===== -->
+  <div id="config-drawer" class="drawer" aria-hidden="true">
+    <div class="cfg-head">
+      <strong style="font-size:14px; letter-spacing:.3px;">Configurations</strong>
+      <div class="cfg-actions">
+        <span class="cfg-small" id="cfg-mode-note"></span>
+      </div>
+    </div>
+
+    <div class="cfg-row">
+      <div class="cfg-label">Output path</div>
+      <div class="cfg-flex">
+        <input id="cfg-save-dir" type="text" class="cfg-inp" placeholder="/path/to/save" />
+        <button id="cfg-save-dir-reset" class="cfg-btn" title="Restore default">Default</button>
+      </div>
+      <div class="cfg-small">Changes apply automatically.</div>
+    </div>
+
+    <div class="cfg-row">
+      <div class="cfg-label">LED</div>
+      <label class="cfg-flex cfg-small" style="gap:12px;">
+        <span>Enable LED</span>
+        <label class="switch">
+          <input id="cfg-led" type="checkbox" />
+          <span class="slider"></span>
+        </label>
+        <span id="cfg-led-note" class="cfg-small"></span>
+      </label>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
