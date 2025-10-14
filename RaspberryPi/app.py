@@ -278,7 +278,7 @@ def _ensure_picam2(width=_preview_w, height=_preview_h, fps=_preview_fps):
         if _picam2 is not None:
             return _picam2
 
-        picam2 = Piccamera2 = Picamera2()  # alias for clarity
+        picam2 = Picamera2()  # alias for clarity
         # Use a lightweight preview configuration (RGB for easy encoding)
         config = picam2.create_preview_configuration(
             main={"size": (int(width), int(height)), "format": "RGB888"}
