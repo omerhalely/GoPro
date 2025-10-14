@@ -17,9 +17,11 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 DEFAULT_SAVE_DIR = "./outputs"   # fixed default output directory
+if not os.path.exists(DEFAULT_SAVE_DIR):
+    os.mkdir(DEFAULT_SAVE_DIR)
 
 # ── DEV toggle ────────────────────────────────────────────────────────────────
-DEVELOPMENT_MODE = True  # ← set False on the Raspberry Pi for real actions
+DEVELOPMENT_MODE = False  # ← set False on the Raspberry Pi for real actions
 
 # ── Shell console settings ────────────────────────────────────────────────────
 SHELL_ENABLED = True               # ⚠️ Anyone with page access can run commands

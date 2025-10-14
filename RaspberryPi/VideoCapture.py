@@ -27,7 +27,7 @@ def writer(output_dir, output_size, fps):
     if not os.path.exists(current_date_video_path):
         os.mkdir(current_date_video_path)
     current_time = datetime.now().strftime("%H-%M-%S")
-    output_path = os.path.join(current_date_video_path, f"{current_time}.avi")
+    output_path = os.path.join(current_date_video_path, f"{current_time}.mp4")
 
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     out = cv2.VideoWriter(output_path, fourcc, fps, output_size)
@@ -38,7 +38,6 @@ def writer(output_dir, output_size, fps):
             break
         out.write(frame)
     
-    print("End Video")
     out.release()
 
 
@@ -93,9 +92,6 @@ def video_capture(stop_evt: threading.Event, output_dir: str):
             time.sleep(1 / fps - (time.time() - start))
         end = time.time()
         current_fps = 1 / (end - start)
-        print(f"FPS : {current_fps:.2f}Hz | Queue Length : {frame_queue.qsize()} | Delta Available : {delta_available:.2f}")
-
-    print(f"Saving {frame_queue.qsize()} frames")
 
     frame_queue.put(None)
     t.join()
