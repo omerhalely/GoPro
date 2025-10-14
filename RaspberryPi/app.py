@@ -1,5 +1,6 @@
-from flask import Flask, jsonify, request, render_template, send_from_directory
+from flask import Flask, jsonify, request, render_template, send_from_directory, Response, stream_with_context
 import threading, time, os, subprocess, platform
+from utils import _res_to_str, _parse_res_str
 
 # Try imports of capture image and video
 try:
@@ -29,6 +30,16 @@ SHELL_MAX_CHARS = 100_000          # cap combined stdout/stderr size
 # ── Mutable runtime config (server-side) ──────────────────────────────────────
 CURRENT_SAVE_DIR = DEFAULT_SAVE_DIR
 LED_ON = False   # tracked state; no-op in DEVELOPMENT_MODE
+
+# === Capture defaults ===
+IMAGE_RES_DEFAULT = (640, 480)
+VIDEO_RES_DEFAULT = (640, 480)
+VIDEO_FPS_DEFAULT = 25
+
+# === Current (mutable) settings ===
+CURRENT_IMAGE_RES = list(IMAGE_RES_DEFAULT)  # [w, h]
+CURRENT_VIDEO_RES = list(VIDEO_RES_DEFAULT)  # [w, h]
+CURRENT_VIDEO_FPS = VIDEO_FPS_DEFAULT
 
 # Tiny random float without importing random
 def randf(lo, hi):
@@ -250,43 +261,135 @@ def capture_image_endpoint():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
+# ── Live preview ──────────────────────────────────────────────────────────
+@app.get("/preview.mjpg")
+def preview_mjpg():
+    """
+    Streams multipart/x-mixed-replace MJPEG. Works on the Pi with cv2.
+    In DEV mode, return 503 so the frontend shows a canvas placeholder.
+    """
+    if DEVELOPMENT_MODE:
+        return jsonify({"ok": False, "error": "Preview not available in DEV"}), 503
+
+    try:
+        import cv2
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"OpenCV not available: {e}"}), 503
+
+    def gen():
+        cap = None
+        try:
+            cap = cv2.VideoCapture(0)
+            # Try to respect current video resolution if set
+            try:
+                vw, vh = CURRENT_VIDEO_RES  # ensure these exist in your config
+                if vw and vh:
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  vw)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, vh)
+            except Exception:
+                pass
+
+            if not cap.isOpened():
+                raise RuntimeError("Camera not available")
+
+            while True:
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                # Optionally resize to CURRENT_VIDEO_RES
+                try:
+                    vw, vh = CURRENT_VIDEO_RES
+                    if vw and vh:
+                        import cv2 as _cv
+                        frame = _cv.resize(frame, (int(vw), int(vh)))
+                except Exception:
+                    pass
+
+                ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                if not ok:
+                    continue
+                jpg = buffer.tobytes()
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n"
+                    b"Content-Length: " + str(len(jpg)).encode() + b"\r\n\r\n" +
+                    jpg + b"\r\n"
+                )
+        finally:
+            if cap is not None:
+                try: cap.release()
+                except Exception: pass
+
+    return Response(stream_with_context(gen()),
+                    mimetype="multipart/x-mixed-replace; boundary=frame")
+
 # ── Config endpoints ──────────────────────────────────────────────────────────
 @app.get("/config")
 def get_config():
     return jsonify({
-        "save_dir_current": CURRENT_SAVE_DIR,
-        "save_dir_default": DEFAULT_SAVE_DIR,
-        "led_on": LED_ON,
         "development_mode": DEVELOPMENT_MODE,
+        "save_dir_default": DEFAULT_SAVE_DIR,
+        "save_dir_current": CURRENT_SAVE_DIR,
+
+        # NEW:
+        "image_res_default": _res_to_str(IMAGE_RES_DEFAULT),
+        "image_res_current": _res_to_str(CURRENT_IMAGE_RES),
+        "video_res_default": _res_to_str(VIDEO_RES_DEFAULT),
+        "video_res_current": _res_to_str(CURRENT_VIDEO_RES),
+        "video_fps_default": VIDEO_FPS_DEFAULT,
+        "video_fps_current": CURRENT_VIDEO_FPS,
+
+        # keep whatever else you already return (e.g., led_on)
+        "led_on": False if DEVELOPMENT_MODE else False,  # example / placeholder
     })
 
 @app.post("/config")
-def update_config():
-    global CURRENT_SAVE_DIR
+def post_config():
+    global CURRENT_SAVE_DIR, CURRENT_IMAGE_RES, CURRENT_VIDEO_RES, CURRENT_VIDEO_FPS
     try:
         body = request.get_json(force=True, silent=True) or {}
     except Exception:
         body = {}
 
-    updated = {}
-
+    # Save dir (already supported in your app)
     save_dir = body.get("save_dir")
     if isinstance(save_dir, str) and save_dir.strip():
         CURRENT_SAVE_DIR = save_dir.strip()
-        updated["save_dir_current"] = CURRENT_SAVE_DIR
 
-    if "led_on" in body:
-        _set_led(bool(body.get("led_on")))
-        updated["led_on"] = LED_ON
+    # LED (no-op in DEV – keep your existing handling if you have it)
+    # led_on = body.get("led_on")  # ignore/do nothing in DEV
 
-    cfg = {
+    # NEW: image resolution
+    img_res = body.get("image_res")
+    if isinstance(img_res, str):
+        parsed = _parse_res_str(img_res)
+        if parsed:
+            CURRENT_IMAGE_RES = list(parsed)
+
+    # NEW: video resolution
+    vid_res = body.get("video_res")
+    if isinstance(vid_res, str):
+        parsed = _parse_res_str(vid_res)
+        if parsed:
+            CURRENT_VIDEO_RES = list(parsed)
+
+    # NEW: video fps
+    fps = body.get("video_fps")
+    try:
+        if fps is not None:
+            fps = int(fps)
+            if 1 <= fps <= 120:  # reasonable guard
+                CURRENT_VIDEO_FPS = fps
+    except Exception:
+        pass
+
+    return jsonify({
+        "ok": True,
         "save_dir_current": CURRENT_SAVE_DIR,
-        "save_dir_default": DEFAULT_SAVE_DIR,
-        "led_on": LED_ON,
-        "development_mode": DEVELOPMENT_MODE,
-        "updated": updated
-    }
-    return jsonify(cfg)
+        "image_res_current": _res_to_str(CURRENT_IMAGE_RES),
+        "video_res_current": _res_to_str(CURRENT_VIDEO_RES),
+        "video_fps_current": CURRENT_VIDEO_FPS,
+    })
 
 # ── Power endpoint (restart/shutdown) ─────────────────────────────────────────
 @app.post("/power")

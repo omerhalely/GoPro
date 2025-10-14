@@ -170,6 +170,44 @@ input:checked + .slider:before{ transform:translateX(18px); }
 }
 #power-pop button[data-action="reboot"]{ background:var(--accent-blue); }
 
+/* ===== Camera Preview Popout ===== */
+#preview-pop{
+  position: fixed;
+  right: calc(60px + 10px); /* to the left of the rail with a gap */
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  display: none;            /* toggled via .open */
+  flex-direction: column;
+  gap: 8px;
+  z-index: 2001;            /* above drawer, below rail */
+  box-shadow: 0 0 12px rgba(0,0,0,0.35);
+  width: 520px;
+  max-width: calc(100vw - 90px);
+}
+#preview-pop.open { display: flex; }
+
+#preview-pop img, #preview-pop canvas{
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  background: #0c0f14;
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 768px){
+  #preview-pop{
+    right: 10px;
+    top: auto;
+    bottom: 70px;     /* above the bottom rail */
+    transform: none;
+    width: calc(100vw - 20px);
+  }
+}
+
 /* ===== Capture 'Saved' badge ===== */
 .badge{
   display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600;
@@ -196,3 +234,71 @@ input:checked + .slider:before{ transform:translateX(18px); }
     right:10px; top:auto; bottom:70px; transform:none; /* above bottom rail */
   }
 }
+
+/* ===== Modal Confirmation ===== */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 17, 22, 0.65);
+  backdrop-filter: blur(3px);
+  z-index: 3000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.modal.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.modal-content {
+  background: var(--card-bg, #161a20);
+  color: var(--text, #e6e6e6);
+  padding: 24px 28px;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  text-align: center;
+  width: 280px;
+  max-width: 90%;
+  transform: scale(0.95);
+  transition: transform 0.25s ease;
+}
+.modal.open .modal-content {
+  transform: scale(1);
+}
+.modal-actions {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 18px;
+  gap: 12px;
+}
+.modal-btn {
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+.modal-btn:hover {
+  transform: scale(1.04);
+}
+.modal-btn.cancel {
+  background: #a12a2a;   /* red tone */
+  color: #fff;
+}
+.modal-btn.cancel:hover {
+  background: #c73a3a;
+}
+.modal-btn.ok {
+  background: #1e784d;   /* green tone */
+  color: #fff;
+}
+.modal-btn.ok:hover {
+  background: #239d60;
+}
+
+

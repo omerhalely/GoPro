@@ -1,14 +1,14 @@
 // ======================================================
-// PiCam Controller — Frontend JS
+// PiCam Controller — Frontend JS (copy-paste full file)
 // ======================================================
 
-// -------- Global Config --------
+// ----------------------- Globals -----------------------
 const POLL_EVERY_MS = 2000;
-let   WINDOW_SEC    = 30;
+let   WINDOW_SEC    = 30;                 // metrics window
 const WINDOW_MS     = () => WINDOW_SEC * 1000;
-const MAX_POINTS    = 5000;
+const MAX_POINTS    = 5000;               // charts safety cap
 
-// -------- Utilities --------
+// ----------------------- Utils -------------------------
 async function api(path, opts = {}) {
   const r = await fetch(path, { cache: "no-store", ...opts });
   const txt = await r.text();
@@ -20,7 +20,7 @@ function setDonut(el, pctFree) {
 }
 
 // ======================================================
-// THEME (Dark/Light) with localStorage
+// Theme (Dark/Light) with localStorage
 // ======================================================
 const ThemeController = (() => {
   const KEY = 'theme'; // 'light' or 'dark'
@@ -34,7 +34,7 @@ const ThemeController = (() => {
   function load() {
     const stored = localStorage.getItem(KEY);
     if (stored === 'light' || stored === 'dark') return stored;
-    return 'dark'; // default
+    return 'dark';
   }
 
   function save(mode) { localStorage.setItem(KEY, mode); }
@@ -46,42 +46,47 @@ const ThemeController = (() => {
   }
 
   function init() {
-    const mode = load();
-    apply(mode);
+    apply(load());
     const btn = document.getElementById('theme-toggle');
-    if (!btn) {
-      console.warn('[theme] #theme-toggle not found');
-      return;
-    }
-    btn.addEventListener('click', toggle);
+    if (btn) btn.addEventListener('click', toggle);
   }
 
   return { init, toggle };
 })();
 
 // ======================================================
-// PANELS (mutual exclusivity for power/shell/config)
+// PanelController (mutual exclusivity for any registered panel)
 // ======================================================
 const PanelController = (() => {
-  let closeShell  = () => {};
-  let closeConfig = () => {};
-  let closePower  = () => {};
+  // map: { panelName: () => closeFn }
+  const closers = {};
 
-  function register({ shell, config, power }) {
-    if (shell  && shell.close)  closeShell  = shell.close;
-    if (config && config.close) closeConfig = config.close;
-    if (power  && power.close)  closePower  = power.close;
+  function register(map) {
+    // Accept either {name: closeFn} or {name: {close: closeFn}}
+    for (const [name, val] of Object.entries(map || {})) {
+      if (typeof val === 'function') {
+        closers[name] = val;
+      } else if (val && typeof val.close === 'function') {
+        closers[name] = val.close;
+      }
+    }
   }
+
+  // Close all except the one named in `except` (or close all if null)
   function closeAll(except = null) {
-    if (except !== 'shell')  closeShell();
-    if (except !== 'config') closeConfig();
-    if (except !== 'power')  closePower();
+    for (const [name, fn] of Object.entries(closers)) {
+      if (name !== except && typeof fn === 'function') {
+        try { fn(); } catch { /* no-op */ }
+      }
+    }
   }
+
   return { register, closeAll };
 })();
 
+
 // ======================================================
-// STATUS / METRICS / CHARTS
+// Status / Metrics / Charts
 // ======================================================
 function setStatus(running, sinceTs){
   const el = document.getElementById('status');
@@ -91,7 +96,7 @@ function setStatus(running, sinceTs){
     const since = sinceTs ? new Date(sinceTs*1000).toLocaleTimeString() : '—';
     el.innerHTML = '🟢 Recording <span class="mono">(since '+since+')</span>';
   } else {
-    el.innerHTML = '🛑 Not recording';
+    el.innerHTML = '🔴 Not recording';
   }
 }
 
@@ -114,7 +119,7 @@ async function stopCapture(){
   setTimeout(refreshStatus, 300);
 }
 
-// NEW: capture still image
+// -------- Still capture (compact UI feedback) --------
 async function captureStill(){
   const logEl   = document.getElementById('log');
   const timeEl  = document.getElementById('last_image_time');
@@ -125,37 +130,29 @@ async function captureStill(){
     const data = await res.json();
 
     if (!res.ok || !data.ok) {
-      // Show a brief error badge
       timeEl.textContent = '—';
       badgeEl.textContent = 'Failed';
-      badgeEl.classList.remove('hide');
-      badgeEl.classList.add('warn');
+      badgeEl.classList.remove('hide'); badgeEl.classList.add('warn');
       setTimeout(() => { badgeEl.classList.add('hide'); badgeEl.classList.remove('warn'); }, 2000);
-      // Optional: keep log minimal
       logEl.textContent = 'Capture failed';
       return;
     }
 
-    // Success: show time + small “Saved” badge
-    const now = new Date();
-    timeEl.textContent = now.toLocaleTimeString();
+    timeEl.textContent = new Date().toLocaleTimeString();
     badgeEl.textContent = 'Saved';
     badgeEl.classList.remove('hide');
     setTimeout(() => badgeEl.classList.add('hide'), 1800);
-
-    // Optional: minimal log line (no path)
     logEl.textContent = 'Image captured successfully.';
   } catch (e) {
     timeEl.textContent = '—';
     badgeEl.textContent = 'Error';
-    badgeEl.classList.remove('hide');
-    badgeEl.classList.add('warn');
+    badgeEl.classList.remove('hide'); badgeEl.classList.add('warn');
     setTimeout(() => { badgeEl.classList.add('hide'); badgeEl.classList.remove('warn'); }, 2000);
     logEl.textContent = 'Error: ' + e;
   }
 }
 
-// Ring buffers for charts (timestamped: [t, v])
+// -------- Charts buffers --------
 const buf = { cur:[], vol:[], cpu:[], ram:[], mhz:[] };
 
 function prune(a) {
@@ -242,7 +239,7 @@ async function tick(){
   drawSparkline(document.getElementById('mhz'), buf.mhz);
 }
 
-// Window chip controls
+// -------- Window chip controls --------
 function setupWindowChips() {
   const allChips = Array.from(document.querySelectorAll('.chip'));
   function activate(sec) {
@@ -257,14 +254,12 @@ function setupWindowChips() {
     drawSparkline(document.getElementById('ram'), buf.ram, {min:0, max:100});
     drawSparkline(document.getElementById('mhz'), buf.mhz);
   }
-  allChips.forEach(chip => {
-    chip.addEventListener('click', () => activate(chip.dataset.win));
-  });
+  allChips.forEach(chip => chip.addEventListener('click', () => activate(chip.dataset.win)));
   activate(document.querySelector('.chip.active')?.dataset.win ?? 30);
 }
 
 // ======================================================
-// SHELL Drawer (exclusive + cls clear)
+// SHELL Drawer (exclusive + 'cls' to clear)
 // ======================================================
 (function () {
   const drawer = document.getElementById('shell-drawer');
@@ -291,11 +286,10 @@ function setupWindowChips() {
   }
   function toggleDrawer() { isOpen() ? closeDrawer() : openDrawer(); }
 
-  // expose to PanelController
   PanelController.register({ shell: { close: closeDrawer } });
 
   function appendOut(kind, text) {
-    const prefix = kind === 'stdout' ? '' : '[stderr] ';
+    const prefix = kind === 'stderr' ? '[stderr] ' : '';
     output.textContent += (prefix + (text || '')).replace(/\r\n/g, '\n') + '\n';
     output.scrollTop = output.scrollHeight;
   }
@@ -349,7 +343,7 @@ function setupWindowChips() {
 })();
 
 // ======================================================
-// CONFIG Drawer (exclusive + live apply + LED no-op)
+// CONFIG Drawer (exclusive + live apply + new fields)
 // ======================================================
 (function () {
   const drawer = document.getElementById('config-drawer');
@@ -359,7 +353,14 @@ function setupWindowChips() {
   const saveDirReset = document.getElementById('cfg-save-dir-reset');
   const ledToggle = document.getElementById('cfg-led');
   const modeNote = document.getElementById('cfg-mode-note');
-  const ledNote = document.getElementById('cfg-led-note');
+  const ledNote  = document.getElementById('cfg-led-note');
+
+  // NEW: resolution/FPS inputs
+  const imgResInput = document.getElementById('cfg-img-res');
+  const imgResReset = document.getElementById('cfg-img-res-reset');
+  const vidResInput = document.getElementById('cfg-vid-res');
+  const vidFpsInput = document.getElementById('cfg-vid-fps');
+  const vidReset    = document.getElementById('cfg-vid-reset');
 
   function isOpen() { return drawer.classList.contains('open'); }
   function openDrawer() {
@@ -375,39 +376,66 @@ function setupWindowChips() {
   }
   function toggleDrawer() { isOpen() ? closeDrawer() : openDrawer(); }
 
-  // expose for PanelController
   PanelController.register({ config: { close: closeDrawer } });
 
   async function loadConfig() {
     const cfg = await (await fetch('/config', {cache:'no-store'})).json();
+
     saveDirInput.value = cfg.save_dir_current || '';
     modeNote.textContent = cfg.development_mode ? 'DEV mode' : 'PROD';
     ledToggle.checked = !!cfg.led_on;
     ledNote.textContent = cfg.development_mode ? ' (no-op in DEV)' : '';
-    document.getElementById('save_dir').textContent = cfg.save_dir_current ?? '—';
+
+    // NEW: populate res/fps with defaults & dataset defaults for reset buttons
+    imgResInput.value = cfg.image_res_current || cfg.image_res_default || '640x480';
+    imgResInput.dataset.default = cfg.image_res_default || '640x480';
+
+    vidResInput.value = cfg.video_res_current || cfg.video_res_default || '640x480';
+    vidResInput.dataset.default = cfg.video_res_default || '640x480';
+
+    vidFpsInput.value = (cfg.video_fps_current ?? cfg.video_fps_default ?? 25);
+    vidFpsInput.dataset.default = (cfg.video_fps_default ?? 25);
+
+    // Also reflect save dir elsewhere in UI
+    document.getElementById('save_dir').textContent  = cfg.save_dir_current ?? '—';
     document.getElementById('disk_path').textContent = cfg.save_dir_current ?? '—';
   }
 
-  // Debounced auto-apply when typing
+  // Debounced auto-apply for any input in this drawer
   let applyTimer = null;
-  function scheduleApplyPath() {
+  function scheduleApplyConfig() {
     if (applyTimer) clearTimeout(applyTimer);
     applyTimer = setTimeout(async () => {
-      const path = saveDirInput.value.trim();
+      const payload = {
+        save_dir: (saveDirInput.value || '').trim(),
+        image_res: (imgResInput.value || '').trim(),
+        video_res: (vidResInput.value || '').trim(),
+        video_fps: parseInt(vidFpsInput.value || '25', 10)
+      };
       await fetch('/config', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ save_dir: path })
+        body: JSON.stringify(payload)
       });
       refreshStatus();
     }, 300);
   }
 
-  async function restoreDefault() {
+  async function restoreDefaultPath() {
     const r = await fetch('/config', {cache:'no-store'});
     const cfg = await r.json();
-    saveDirInput.value = cfg.save_dir_default || '';
-    scheduleApplyPath();
+    saveDirInput.value = cfg.save_dir_default || './outputs';
+    scheduleApplyConfig();
+  }
+
+  function restoreImgDefault() {
+    imgResInput.value = imgResInput.dataset.default || '640x480';
+    scheduleApplyConfig();
+  }
+  function restoreVidDefault() {
+    vidResInput.value = vidResInput.dataset.default || '640x480';
+    vidFpsInput.value = vidFpsInput.dataset.default || 25;
+    scheduleApplyConfig();
   }
 
   async function applyLed() {
@@ -422,49 +450,87 @@ function setupWindowChips() {
     toggleDrawer();
     if (isOpen()) await loadConfig();
   });
-  saveDirInput.addEventListener('input', scheduleApplyPath);
-  saveDirReset.addEventListener('click', restoreDefault);
+
+  // Auto-apply on change/typing
+  saveDirInput.addEventListener('input', scheduleApplyConfig);
+  imgResInput .addEventListener('input', scheduleApplyConfig);
+  vidResInput .addEventListener('input', scheduleApplyConfig);
+  vidFpsInput .addEventListener('input', scheduleApplyConfig);
+
+  // Reset buttons
+  saveDirReset.addEventListener('click', restoreDefaultPath);
+  imgResReset.addEventListener('click', () => {
+    imgResInput.value = imgResInput.dataset.default || '640x480';
+    scheduleApplyConfig();
+  });
+  vidReset.addEventListener('click', () => {
+    vidResInput.value = vidResInput.dataset.default || '640x480';
+    vidFpsInput.value = vidFpsInput.dataset.default || 25;
+    scheduleApplyConfig();
+  });
+
   ledToggle.addEventListener('change', applyLed);
 })();
 
 // ======================================================
-// POWER (popover + confirm) — exclusive
+// POWER (popover + modal confirm) — exclusive & robust
 // ======================================================
 (function () {
   const btn = document.getElementById('power-toggle');
   const pop = document.getElementById('power-pop');
 
-  function isOpen(){ return pop.classList.contains('open'); }
+  // Modal bits
+  const modal   = document.getElementById('confirm-modal');
+  const titleEl = document.getElementById('confirm-title');
+  const msgEl   = document.getElementById('confirm-msg');
+  const cancelBtn = document.getElementById('confirm-cancel');
+  const okBtn     = document.getElementById('confirm-ok');
+
+  // Optional direct references if you gave the buttons IDs:
+  const rebootBtn   = document.querySelector('#power-pop [data-action="reboot"]');
+  const shutdownBtn = document.querySelector('#power-pop [data-action="shutdown"]');
+
+  let pendingAction = null;
+
+  function isOpen(){ return pop && pop.classList.contains('open'); }
   function openPop() {
+    if (!pop) return console.error('[power] #power-pop not found');
     PanelController.closeAll('power');
     pop.classList.add('open');
-    btn.classList.add('active');
+    btn && btn.classList.add('active');
   }
   function closePop() {
+    if (!pop) return;
     pop.classList.remove('open');
-    btn.classList.remove('active');
+    btn && btn.classList.remove('active');
   }
   function togglePop() { isOpen() ? closePop() : openPop(); }
 
-  // expose close for PanelController
   PanelController.register({ power: { close: closePop } });
 
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    togglePop();
-  });
+  // ---- Modal handling ----
+  function showModal(action) {
+    if (!modal) return console.error('[power] #confirm-modal not found');
+    pendingAction = action;
+    const label = action === 'reboot' ? 'Restart' : 'Shut Down';
+    titleEl && (titleEl.textContent = `${label} Pi`);
+    msgEl   && (msgEl.textContent   = `Are you sure you want to ${label.toLowerCase()} the Raspberry Pi?`);
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+  }
 
-  document.addEventListener('click', (e) => {
-    if (!pop.contains(e.target) && e.target !== btn) closePop();
-  });
+  function closeModal() {
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    pendingAction = null;
+  }
 
-  pop.addEventListener('click', async (e) => {
-    const el = e.target.closest('button[data-action]');
-    if (!el) return;
-    const action = el.getAttribute('data-action');
-    const label = action === 'reboot' ? 'restart' : 'shut down';
-    const ok = window.confirm(`Are you sure you want to ${label} the Raspberry Pi?`);
-    if (!ok) return;
+  // Confirm action
+  okBtn && okBtn.addEventListener('click', async () => {
+    if (!pendingAction) return;
+    const action = pendingAction;
+    closeModal();
     closePop();
     try {
       const r = await fetch('/power', {
@@ -474,7 +540,7 @@ function setupWindowChips() {
       });
       const data = await r.json();
       if (!r.ok || !data.ok) {
-        alert('Failed: ' + (data && (data.error || data.message) || r.statusText));
+        alert('Failed: ' + (data.error || data.message || r.statusText));
       } else {
         alert(data.message || 'Command sent.');
       }
@@ -482,13 +548,170 @@ function setupWindowChips() {
       alert('Error: ' + err);
     }
   });
+
+  cancelBtn && cancelBtn.addEventListener('click', closeModal);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+  // Toggle popover from the rail button
+  if (btn) {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      togglePop();
+    });
+  } else {
+    console.warn('[power] #power-toggle not found');
+  }
+
+  // Close popover when clicking outside it
+  document.addEventListener('click', (e) => {
+    if (!pop) return;
+    if (!pop.contains(e.target) && e.target !== btn) closePop();
+  });
+
+  // === Attach click handlers to the popover buttons ===
+  // 1) Robust event delegation (works even if you re-render buttons)
+  if (pop) {
+    pop.addEventListener('click', (e) => {
+      const actionBtn = e.target.closest('button[data-action]');
+      if (!actionBtn) return;
+      const action = actionBtn.getAttribute('data-action');
+      if (action !== 'reboot' && action !== 'shutdown') {
+        console.warn('[power] unknown action:', action);
+        return;
+      }
+      showModal(action);
+    });
+  } else {
+    console.error('[power] #power-pop not found; popover clicks won’t work');
+  }
+
+  // 2) Optional direct bindings too (in case delegation was removed/changed)
+  rebootBtn   && rebootBtn.addEventListener('click', () => showModal('reboot'));
+  shutdownBtn && shutdownBtn.addEventListener('click', () => showModal('shutdown'));
 })();
 
 // ======================================================
-// BOOT
+// PREVIEW (popover + MJPEG in PROD, canvas placeholder in DEV)
+// ======================================================
+(function () {
+  const btn  = document.getElementById('preview-toggle');
+  const pop  = document.getElementById('preview-pop');
+  const feed = document.getElementById('preview-feed');
+  const cvs  = document.getElementById('preview-canvas');
+  const note = document.getElementById('preview-note');
+
+  let devAnim = null;
+  let isDevMode = null; // resolved on first open
+
+  function isOpen(){ return pop && pop.classList.contains('open'); }
+  function openPop() {
+    PanelController.closeAll('preview');
+    pop.classList.add('open');
+    btn && btn.classList.add('active');
+  }
+  function closePop() {
+    pop.classList.remove('open');
+    btn && btn.classList.remove('active');
+    // stop stream
+    if (feed) feed.src = '';
+    // stop dev anim
+    if (devAnim) {
+      cancelAnimationFrame(devAnim);
+      devAnim = null;
+    }
+  }
+  function togglePop() { isOpen() ? closePop() : openPop(); }
+
+  PanelController.register({ preview: { close: closePop } });
+
+  // simple animated DEV placeholder
+  function startDevAnim() {
+    if (!cvs) return;
+    const ctx = cvs.getContext('2d');
+    const W = cvs.width, H = cvs.height;
+    let t = 0;
+    (function loop(){
+      ctx.fillStyle = '#0b0f16';
+      ctx.fillRect(0,0,W,H);
+      const cx = W/2 + Math.cos(t/20)*W/4;
+      const cy = H/2 + Math.sin(t/30)*H/4;
+      const r  = 40 + 10*Math.sin(t/15);
+      // lens ring
+      ctx.beginPath();
+      ctx.arc(cx, cy, r+8, 0, Math.PI*2);
+      ctx.strokeStyle = '#2f81f7';
+      ctx.lineWidth = 6;
+      ctx.stroke();
+      // inner
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI*2);
+      ctx.fillStyle = '#1e784d';
+      ctx.fill();
+
+      ctx.fillStyle = '#9da7b3';
+      ctx.font = '14px system-ui';
+      ctx.fillText('DEV PREVIEW (no camera)', 12, H - 12);
+
+      t++;
+      devAnim = requestAnimationFrame(loop);
+    })();
+  }
+
+  async function resolveMode() {
+    if (isDevMode !== null) return isDevMode;
+    try {
+      const cfg = await (await fetch('/config', {cache:'no-store'})).json();
+      isDevMode = !!cfg.development_mode;
+    } catch {
+      isDevMode = true; // safest fallback: treat as DEV
+    }
+    return isDevMode;
+  }
+
+  async function startPreview() {
+    const dev = await resolveMode();
+    if (dev) {
+      // DEV: show canvas placeholder, hide img
+      if (feed) feed.style.display = 'none';
+      if (cvs)  cvs.style.display  = '';
+      if (note) note.textContent   = 'Running in DEV mode — preview is a placeholder.';
+      startDevAnim();
+    } else {
+      // PROD: show MJPEG <img>, hide canvas
+      if (cvs) { cvs.style.display = 'none'; if (devAnim) { cancelAnimationFrame(devAnim); devAnim = null; } }
+      if (feed) {
+        feed.style.display = '';
+        feed.src = '/preview.mjpg';  // starts stream
+      }
+      if (note) note.textContent = 'Live MJPEG stream from the camera.';
+    }
+  }
+
+  // events
+  btn && btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (isOpen()) {
+      closePop();
+    } else {
+      openPop();
+      await startPreview();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!pop) return;
+    if (!pop.contains(e.target) && e.target !== btn) {
+      closePop();
+    }
+  });
+})();
+
+
+// ======================================================
+// Boot
 // ======================================================
 document.addEventListener('DOMContentLoaded', () => {
-  ThemeController.init(); // ensure theme toggle is bound asap
+  ThemeController.init(); // bind theme toggle immediately
 });
 
 async function boot(){

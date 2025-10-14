@@ -140,6 +140,16 @@
       </svg>
     </button>
 
+  <!-- Camera Preview (NEW) -->
+  <button id="preview-toggle" class="fab" aria-label="Preview" title="Camera Preview">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+         xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M7 8h2l1.5-2h3L15 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z"
+            stroke="currentColor" stroke-width="1.6" />
+      <circle cx="12" cy="13" r="3.5" stroke="currentColor" stroke-width="1.6"/>
+    </svg>
+  </button>
+
     <!-- Shell -->
     <button id="shell-toggle" class="fab" aria-label="Toggle shell" title="Command Shell">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
@@ -165,6 +175,17 @@
   <div id="power-pop" role="dialog" aria-modal="false" aria-label="Power actions">
     <button data-action="reboot">Restart</button>
     <button data-action="shutdown">Shut down</button>
+  </div>
+
+  <!-- Camera Preview Popout -->
+  <div id="preview-pop" role="dialog" aria-modal="false" aria-label="Camera preview">
+    <!-- IMG for live MJPEG in PROD -->
+    <img id="preview-feed" alt="Live preview" />
+
+    <!-- Canvas placeholder for DEV (shown only in DEV) -->
+    <canvas id="preview-canvas" width="480" height="360" aria-hidden="true"></canvas>
+
+    <div class="small muted" id="preview-note"></div>
   </div>
 
   <!-- ===== Shell Drawer ===== -->
@@ -215,6 +236,47 @@
         </label>
         <span id="cfg-led-note" class="cfg-small"></span>
       </label>
+    </div>
+
+    <!-- Image resolution -->
+    <div class="cfg-row">
+      <div class="cfg-label">Image resolution</div>
+      <div class="cfg-flex">
+        <select id="cfg-img-res" class="cfg-inp">
+          <option value="320x240">320x240</option>
+          <option value="640x480">640x480</option>
+          <option value="1280x960">1280x960</option>
+        </select>
+        <button id="cfg-img-res-reset" class="cfg-btn">Default</button>
+      </div>
+    </div>
+
+    <!-- Video resolution & FPS -->
+    <div class="cfg-row">
+      <div class="cfg-label">Video</div>
+      <div class="cfg-flex" style="gap:10px;">
+        <select id="cfg-vid-res" class="cfg-inp">
+          <option value="320x240">320x240</option>
+          <option value="640x480">640x480</option>
+          <option value="1280x960">1280x960</option>
+        </select>
+        <input id="cfg-vid-fps" type="number" min="1" max="120" step="1"
+               class="cfg-inp" style="max-width:120px" placeholder="FPS" />
+        <button id="cfg-vid-reset" class="cfg-btn">Default</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== Confirmation Modal ===== -->
+  <div id="confirm-modal" class="modal" aria-hidden="true">
+    <div class="modal-content">
+      <h3 id="confirm-title">Confirm</h3>
+      <p id="confirm-message">Are you sure you want to continue?</p>
+      <div class="modal-actions">
+        <button id="confirm-cancel" class="modal-btn cancel">Cancel</button>
+        <button id="confirm-ok" class="modal-btn ok">Confirm</button>
+      </div>
     </div>
   </div>
 
