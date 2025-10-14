@@ -205,7 +205,7 @@ def _read_voltage_current():
         return None, None
 
 # ── API endpoints (capture) ───────────────────────────────────────────────────
-@app.get("/start")
+@app.route("/start", methods=["GET"])
 def start_capture():
     global _capture_thread, _is_running, _last_start_ts
     with _state_lock:
@@ -218,17 +218,17 @@ def start_capture():
         _capture_thread.start()
     return jsonify({"status": "started", "started_ts": _last_start_ts, "save_dir": CURRENT_SAVE_DIR})
 
-@app.get("/stop")
+@app.route("/stop", methods=["GET"])
 def stop_capture():
     _stop_evt.set()
     return jsonify({"status": "stop signaled"})
 
-@app.get("/status")
+@app.route("/status", methods=["GET"])
 def status():
     with _state_lock:
         return jsonify({"running": _is_running, "started_ts": _last_start_ts, "save_dir": CURRENT_SAVE_DIR})
 
-@app.post("/capture_image")
+@app.route("/capture_image", methods=["POST"])
 def capture_image_endpoint():
     """
     Captures a still image and saves it under CURRENT_SAVE_DIR.
@@ -261,7 +261,7 @@ def capture_image_endpoint():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 # ── Live preview ──────────────────────────────────────────────────────────
-@app.get("/preview.mjpg")
+@app.route("/preview.mjpg", methods=["GET"])
 def preview_mjpg():
     """
     Streams multipart/x-mixed-replace MJPEG. Works on the Pi with cv2.
@@ -322,7 +322,7 @@ def preview_mjpg():
     return Response(stream_with_context(gen()),
                     mimetype="multipart/x-mixed-replace; boundary=frame")
 
-@app.get("/files")
+@app.route("/files", methods=["GET"])
 def list_files():
     """
     List entries under CURRENT_SAVE_DIR (dirs/files).
@@ -377,7 +377,7 @@ def list_files():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
-@app.get("/media")
+@app.route("/media", methods=["GET"])
 def serve_media():
     """
     GET /media?path=relative/path/from/CURRENT_SAVE_DIR
@@ -454,7 +454,7 @@ def serve_media():
     return rv
 
 # ── Config endpoints ──────────────────────────────────────────────────────────
-@app.get("/config")
+@app.route("/config", methods=["GET"])
 def get_config():
     return jsonify({
         "development_mode": DEVELOPMENT_MODE,
@@ -473,7 +473,7 @@ def get_config():
         "led_on": False if DEVELOPMENT_MODE else False,  # example / placeholder
     })
 
-@app.post("/config")
+@app.route("/config", methods=["POST"])
 def post_config():
     global CURRENT_SAVE_DIR, CURRENT_IMAGE_RES, CURRENT_VIDEO_RES, CURRENT_VIDEO_FPS
     try:
@@ -522,7 +522,7 @@ def post_config():
     })
 
 # ── Power endpoint (restart/shutdown) ─────────────────────────────────────────
-@app.post("/power")
+@app.route("/power", methods=["POST"])
 def power_action():
     """
     Body: {"action": "reboot" | "shutdown"}
@@ -551,7 +551,7 @@ def power_action():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 # ── API endpoint: live metrics ────────────────────────────────────────────────
-@app.get("/metrics")
+@app.route("/metrics", methods=["GET"])
 def metrics():
     ts = time.time()
     cpu_temp = _read_cpu_temp_c()
@@ -573,7 +573,7 @@ def metrics():
     })
 
 # ── API endpoint: shell command execution ─────────────────────────────────────
-@app.post("/shell")
+@app.route("/shell", methods=["POST"])
 def run_shell():
     if not SHELL_ENABLED:
         return jsonify({"error": "Shell disabled on server"}), 403
@@ -631,12 +631,12 @@ def run_shell():
     })
 
 # ── Web UI ────────────────────────────────────────────────────────────────────
-@app.get("/")
+@app.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
 
 # Static files (served by Flask automatically via app.static_folder)
-@app.get("/static/<path:path>")
+@app.route("/static/<path:path>", methods=["GET"])
 def send_static(path):
     return send_from_directory(app.static_folder, path)
 
