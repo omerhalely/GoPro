@@ -11,6 +11,10 @@ try:
     from VideoCapture import video_capture
 except Exception:
     video_capture = None
+try:
+    from picamera2 import Picamera2
+except Exception:
+    Picamera2 = None
 
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -61,6 +65,7 @@ _prev_idle  = None
 # ── Capture thread runner (stub while developing) ─────────────────────────────
 def _run_capture_thread():
     # snapshot the directory at start (avoids races if CURRENT_SAVE_DIR changes mid-run)
+    global _picam2
     save_dir = os.path.abspath(CURRENT_SAVE_DIR)
 
     try:
@@ -79,6 +84,10 @@ def _run_capture_thread():
             while not _stop_evt.is_set():
                 time.sleep(0.25)
         else:
+            if _picam2 is not None:
+                _picam2.stop()
+                _picam2.close()
+                _picam2 = None
             video_capture(_stop_evt, output_dir=save_dir)  # plug in on the Pi
 
     finally:
@@ -286,7 +295,7 @@ def _ensure_picam2(width=_preview_w, height=_preview_h, fps=_preview_fps):
         picam2.configure(config)
         try:
             picam2.set_controls({"FrameRate": int(fps)})
-        except Exception:
+        except Exception as e:
             # Some sensors ignore FrameRate; not fatal.
             pass
         picam2.start()
@@ -313,11 +322,8 @@ def preview_mjpg():
         delay = 1.0 / max(1, _preview_fps)
         while True:
             try:
-                # Returns RGB888 numpy array
                 rgb = cam.capture_array()  # shape (H,W,3), dtype=uint8
-                # Convert RGB -> BGR for OpenCV encoder
-                bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-                ok, buf = cv2.imencode(".jpg", bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+                ok, buf = cv2.imencode(".jpg", rgb, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
                 if not ok:
                     time.sleep(delay)
                     continue

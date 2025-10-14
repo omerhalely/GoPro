@@ -29,7 +29,7 @@ def writer(output_dir, output_size, fps):
     current_time = datetime.now().strftime("%H-%M-%S")
     output_path = os.path.join(current_date_video_path, f"{current_time}.mp4")
 
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    fourcc = cv2.VideoWriter_fourcc(*'H264')
     out = cv2.VideoWriter(output_path, fourcc, fps, output_size)
     
     while True:
