@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request, render_template, send_from_directory, Response, stream_with_context
-import threading, time, os, subprocess, platform, mimetypes
+import threading, time, os, subprocess, platform, mimetypes, cv2
 from utils import _res_to_str, _parse_res_str
 
 # Try imports of capture image and video
@@ -262,67 +262,79 @@ def capture_image_endpoint():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
+_picam2 = None
+_picam_lock = threading.Lock()
+_preview_w = 640
+_preview_h = 480
+_preview_fps = 25
+
+def _ensure_picam2(width=_preview_w, height=_preview_h, fps=_preview_fps):
+    """
+    Lazily create and start a Picamera2 instance configured for preview.
+    Returns a started Picamera2.
+    """
+    global _picam2
+    with _picam_lock:
+        if _picam2 is not None:
+            return _picam2
+
+        picam2 = Piccamera2 = Picamera2()  # alias for clarity
+        # Use a lightweight preview configuration (RGB for easy encoding)
+        config = picam2.create_preview_configuration(
+            main={"size": (int(width), int(height)), "format": "RGB888"}
+        )
+        picam2.configure(config)
+        try:
+            picam2.set_controls({"FrameRate": int(fps)})
+        except Exception:
+            # Some sensors ignore FrameRate; not fatal.
+            pass
+        picam2.start()
+        _picam2 = picam2
+        return _picam2
+
 # ── Live preview ──────────────────────────────────────────────────────────
 @app.route("/preview.mjpg", methods=["GET"])
 def preview_mjpg():
-    """
-    Streams multipart/x-mixed-replace MJPEG. Works on the Pi with cv2.
-    In DEV mode, return 503 so the frontend shows a canvas placeholder.
-    """
-    if DEVELOPMENT_MODE:
-        return jsonify({"ok": False, "error": "Preview not available in DEV"}), 503
+    # If you keep your DEVELOPMENT_MODE flag, you can gate the endpoint:
+    try:
+        if DEVELOPMENT_MODE:
+            return jsonify({"ok": False, "error": "Preview disabled in DEV"}), 503
+    except NameError:
+        pass  # ignore if you don't use that flag
 
     try:
-        import cv2
+        cam = _ensure_picam2(_preview_w, _preview_h, _preview_fps)
     except Exception as e:
-        return jsonify({"ok": False, "error": f"OpenCV not available: {e}"}), 503
+        return jsonify({"ok": False, "error": f"camera init failed: {e}"}), 503
 
     def gen():
-        cap = None
-        try:
-            cap = cv2.VideoCapture(0)
-            # Try to respect current video resolution if set
+        # Simple FPS pacing
+        delay = 1.0 / max(1, _preview_fps)
+        while True:
             try:
-                vw, vh = CURRENT_VIDEO_RES  # ensure these exist in your config
-                if vw and vh:
-                    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  vw)
-                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, vh)
-            except Exception:
-                pass
-
-            if not cap.isOpened():
-                raise RuntimeError("Camera not available")
-
-            while True:
-                ok, frame = cap.read()
+                # Returns RGB888 numpy array
+                rgb = cam.capture_array()  # shape (H,W,3), dtype=uint8
+                # Convert RGB -> BGR for OpenCV encoder
+                bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+                ok, buf = cv2.imencode(".jpg", bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
                 if not ok:
-                    break
-                # Optionally resize to CURRENT_VIDEO_RES
-                try:
-                    vw, vh = CURRENT_VIDEO_RES
-                    if vw and vh:
-                        import cv2 as _cv
-                        frame = _cv.resize(frame, (int(vw), int(vh)))
-                except Exception:
-                    pass
-
-                ok, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-                if not ok:
+                    time.sleep(delay)
                     continue
-                jpg = buffer.tobytes()
+                jpg = buf.tobytes()
                 yield (
                     b"--frame\r\n"
                     b"Content-Type: image/jpeg\r\n"
                     b"Content-Length: " + str(len(jpg)).encode() + b"\r\n\r\n" +
                     jpg + b"\r\n"
                 )
-        finally:
-            if cap is not None:
-                try: cap.release()
-                except Exception: pass
-
-    return Response(stream_with_context(gen()),
-                    mimetype="multipart/x-mixed-replace; boundary=frame")
+                # time.sleep(delay)
+            except GeneratorExit:
+                break  # client closed
+            except Exception:
+                time.sleep(delay)
+                continue
+    return Response(gen(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 @app.route("/files", methods=["GET"])
 def list_files():
