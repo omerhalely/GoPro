@@ -1,3 +1,6 @@
+import os
+
+
 def _parse_res_str(s):
     """
     '640x480' -> (640, 480). Returns None if invalid.
@@ -13,6 +16,7 @@ def _parse_res_str(s):
         return (w, h)
     except Exception:
         return None
+
 
 def _res_to_str(res):
     try:

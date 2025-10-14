@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request, render_template, send_from_directory, Response, stream_with_context
-import threading, time, os, subprocess, platform
+import threading, time, os, subprocess, platform, mimetypes
 from utils import _res_to_str, _parse_res_str
 
 # Try imports of capture image and video
@@ -11,7 +11,6 @@ try:
     from VideoCapture import video_capture
 except Exception:
     video_capture = None
-
 
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -322,6 +321,137 @@ def preview_mjpg():
 
     return Response(stream_with_context(gen()),
                     mimetype="multipart/x-mixed-replace; boundary=frame")
+
+@app.get("/files")
+def list_files():
+    """
+    List entries under CURRENT_SAVE_DIR (dirs/files).
+    Query param:
+      - path="" (relative path inside CURRENT_SAVE_DIR)
+    Returns:
+      { base, path, entries:[{name,type, size, mtime, path}] }
+    """
+    try:
+        rel = (request.args.get("path") or "").strip().lstrip("/\\")
+        base = os.path.abspath(CURRENT_SAVE_DIR)
+        target = os.path.abspath(os.path.join(base, rel))
+
+        # security: must stay under base
+        if not target.startswith(base):
+            return jsonify({"ok": False, "error": "Invalid path"}), 400
+
+        if not os.path.exists(target):
+            return jsonify({"ok": False, "error": "Not found"}), 404
+
+        entries = []
+        names = []
+        try:
+            names = os.listdir(target)
+        except Exception as e:
+            return jsonify({"ok": False, "error": f"Cannot list directory: {e}"}), 500
+
+        # Sort: directories first, then files (A–Z)
+        names.sort(key=lambda n: (not os.path.isdir(os.path.join(target, n)), n.lower()))
+
+        for name in names[:2000]:  # soft cap
+            full = os.path.join(target, name)
+            try:
+                st = os.stat(full)
+                entries.append({
+                    "name": name,
+                    "type": "dir" if os.path.isdir(full) else "file",
+                    "size": st.st_size if os.path.isfile(full) else None,
+                    "mtime": st.st_mtime,
+                    "path": os.path.relpath(full, base).replace("\\", "/")
+                })
+            except Exception:
+                continue
+
+        rel_out = "" if target == base else os.path.relpath(target, base).replace("\\", "/")
+        return jsonify({
+            "ok": True,
+            "base": base,
+            "path": rel_out,
+            "entries": entries
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.get("/media")
+def serve_media():
+    """
+    GET /media?path=relative/path/from/CURRENT_SAVE_DIR
+    - Validates path stays inside CURRENT_SAVE_DIR
+    - Sets correct mimetype
+    - Supports Range requests for video/audio
+    """
+    rel = (request.args.get("path") or "").strip().lstrip("/\\")
+    base = os.path.abspath(CURRENT_SAVE_DIR)
+    target = os.path.abspath(os.path.join(base, rel))
+
+    if not target.startswith(base):
+        return jsonify({"ok": False, "error": "Invalid path"}), 400
+    if not os.path.exists(target) or not os.path.isfile(target):
+        return jsonify({"ok": False, "error": "Not found"}), 404
+
+    file_size = os.path.getsize(target)
+    mime, _ = mimetypes.guess_type(target)
+    if not mime:
+        mime = "application/octet-stream"
+
+    # Handle Range requests (bytes=START-END)
+    range_header = request.headers.get("Range", None)
+    if range_header:
+        # Example: "bytes=0-" or "bytes=1000-2000"
+        try:
+            units, rng = range_header.split("=")
+            if units.strip() != "bytes":
+                raise ValueError
+            start_end = rng.split("-")
+            start = int(start_end[0]) if start_end[0] else 0
+            end = int(start_end[1]) if len(start_end) > 1 and start_end[1] else file_size - 1
+            start = max(0, start)
+            end = min(end, file_size - 1)
+            if start > end:
+                start = 0
+                end = file_size - 1
+        except Exception:
+            start, end = 0, file_size - 1
+
+        length = end - start + 1
+
+        def generate():
+            with open(target, "rb") as f:
+                f.seek(start)
+                chunk_size = 8192
+                remaining = length
+                while remaining > 0:
+                    data = f.read(min(chunk_size, remaining))
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+
+        rv = Response(generate(), status=206, mimetype=mime,
+                      direct_passthrough=True)
+        rv.headers.add("Content-Range", f"bytes {start}-{end}/{file_size}")
+        rv.headers.add("Accept-Ranges", "bytes")
+        rv.headers.add("Content-Length", str(length))
+        return rv
+
+    # No range: return full file
+    def generate_full():
+        with open(target, "rb") as f:
+            while True:
+                data = f.read(8192)
+                if not data:
+                    break
+                yield data
+
+    rv = Response(generate_full(), mimetype=mime, direct_passthrough=True)
+    rv.headers.add("Content-Length", str(file_size))
+    rv.headers.add("Accept-Ranges", "bytes")
+    return rv
 
 # ── Config endpoints ──────────────────────────────────────────────────────────
 @app.get("/config")

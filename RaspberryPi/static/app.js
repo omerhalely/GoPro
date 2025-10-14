@@ -706,6 +706,276 @@ function setupWindowChips() {
   });
 })();
 
+// ======================================================
+// FILES (popout: list dirs at root, then files inside)
+// ======================================================
+(function () {
+  const btn   = document.getElementById('files-toggle');
+  const pop   = document.getElementById('files-pop');
+  const list  = document.getElementById('files-list');
+  const foot  = document.getElementById('files-foot');
+  const bcEl  = document.getElementById('files-bc');
+
+  let currentPath = ""; // relative to CURRENT_SAVE_DIR
+
+  function isOpen(){ return pop && pop.classList.contains('open'); }
+  function openPop() {
+    PanelController.closeAll('files');
+    pop.classList.add('open');
+    btn && btn.classList.add('active');
+    loadPath(""); // root
+  }
+  function closePop() {
+    pop.classList.remove('open');
+    btn && btn.classList.remove('active');
+  }
+  function togglePop() { isOpen() ? closePop() : openPop(); }
+
+  PanelController.register({ files: { close: closePop } });
+
+  function fmtBytes(n){
+    if (n == null || n < 0) return '';
+    const u = ['B','KB','MB','GB','TB'];
+    let i = 0, v = n;
+    while (v >= 1024 && i < u.length-1) { v /= 1024; i++; }
+    return v.toFixed(v >= 10 ? 0 : 1) + ' ' + u[i];
+  }
+  function fmtTime(ts){
+    try { return new Date(ts*1000).toLocaleString(); }
+    catch { return ''; }
+  }
+
+  function iconForEntry(e) {
+    if (e.type === 'dir') {
+      return {
+        cls: 'folder',
+        html: `
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3.5 7.5h6l1.5 2h9.5v6.5a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-6.5a2 2 0 0 1 2-2Z"
+                  stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          </svg>`
+      };
+    }
+    const name = (e.name || '').toLowerCase();
+    const ext = name.includes('.') ? name.split('.').pop() : '';
+
+    const videoExt = new Set(['avi', 'mp4', 'mov', 'mkv', 'm4v', 'webm']);
+    const imageExt = new Set(['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tif', 'tiff']);
+
+    if (videoExt.has(ext)) {
+      return {
+        cls: 'video',
+        html: `
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 7a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"
+                  stroke="currentColor" stroke-width="1.6"/>
+            <path d="M14 10.5l6-3.5v10l-6-3.5v-3Z"
+                  stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          </svg>`
+      };
+    }
+    if (imageExt.has(ext)) {
+      return {
+        cls: 'image',
+        html: `
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2"
+                  stroke="currentColor" stroke-width="1.6"/>
+            <path d="M7 15l3.5-3.5 3 3 2.5-2.5L19 15"
+                  stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="9" cy="9" r="1.6" fill="currentColor"/>
+          </svg>`
+      };
+    }
+    return {
+      cls: 'generic',
+      html: `
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"
+                stroke="currentColor" stroke-width="1.6" />
+          <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.6"/>
+        </svg>`
+    };
+  }
+
+  function renderList(data){
+    currentPath = data.path || "";
+
+    // Breadcrumbs
+    const parts = currentPath.split('/').filter(Boolean);
+    const crumbs = ['<span class="crumb" data-path="">root</span>'];
+    let acc = "";
+    for (let i=0;i<parts.length;i++){
+      acc += (i ? "/" : "") + parts[i];
+      crumbs.push('<span class="sep">/</span><span class="crumb" data-path="'+acc+'">'+parts[i]+'</span>');
+    }
+    bcEl.innerHTML = crumbs.join('');
+
+    // At root: show **directories only**.
+    // Inside a folder: show dirs first, then files.
+    const entries = data.entries || [];
+    const atRoot = !currentPath;
+
+    const filtered = atRoot
+      ? entries.filter(e => e.type === 'dir')
+      : entries; // inside: show all
+
+    list.innerHTML = '';
+
+    if (!filtered.length){
+      const empty = document.createElement('div');
+      empty.className = 'file-row';
+      empty.innerHTML = '<div class="file-name muted">No items</div>';
+      list.appendChild(empty);
+    } else {
+      for (const e of filtered) {
+        const row = document.createElement('div');
+        row.className = 'file-row';
+        row.dataset.type = e.type;
+        row.dataset.path = e.path;
+
+        const ico = document.createElement('div');
+        const icon = iconForEntry(e);
+        ico.className = 'file-ico ' + icon.cls;
+        ico.innerHTML = icon.html;
+
+        const name = document.createElement('div');
+        name.className = 'file-name';
+        name.textContent = e.name;
+
+        const meta = document.createElement('div');
+        meta.className = 'file-meta';
+        if (e.type === 'file') {
+          const dt = fmtTime(e.mtime || 0);
+          meta.textContent = [fmtBytes(e.size), dt].filter(Boolean).join(' • ');
+        } else {
+          meta.textContent = 'Folder';
+        }
+
+        row.appendChild(ico);
+        row.appendChild(name);
+        row.appendChild(meta);
+        list.appendChild(row);
+      }
+    }
+
+    const countDirs = entries.filter(e => e.type === 'dir').length;
+    const countFiles = entries.filter(e => e.type === 'file').length;
+    foot.textContent = atRoot
+      ? `${countDirs} director${countDirs===1?'y':'ies'}`
+      : `${countDirs} director${countDirs===1?'y':'ies'} • ${countFiles} file${countFiles===1?'':'s'}`;
+  }
+
+  async function loadPath(pathRel){
+    try{
+      const r = await fetch(`/files?path=${encodeURIComponent(pathRel||'')}`, {cache:'no-store'});
+      const data = await r.json();
+      if (!r.ok || !data.ok) {
+        list.innerHTML = `<div class="file-row"><div class="file-name muted">Error: ${data.error || r.statusText}</div></div>`;
+        foot.textContent = '—';
+        return;
+      }
+      renderList(data);
+    }catch(e){
+      list.innerHTML = `<div class="file-row"><div class="file-name muted">Error: ${String(e)}</div></div>`;
+      foot.textContent = '—';
+    }
+  }
+
+  // Click handlers
+  btn && btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePop();
+  });
+  document.addEventListener('click', (e) => {
+    if (!pop) return;
+    if (!pop.contains(e.target) && e.target !== btn) closePop();
+  });
+
+  // Navigate by clicking rows (dirs only navigate; files are non-action)
+  list.addEventListener('click', (e) => {
+  const row = e.target.closest('.file-row');
+  if (!row) return;
+  const type = row.dataset.type;
+  const path = row.dataset.path || '';
+  const name = row.querySelector('.file-name')?.textContent || '';
+
+  if (type === 'dir') {
+    loadPath(path);
+  } else if (type === 'file') {
+    openViewer(path, name);
+  }
+});
+
+
+  // Breadcrumb navigation
+  bcEl.addEventListener('click', (e) => {
+    const c = e.target.closest('.crumb');
+    if (!c) return;
+    loadPath(c.dataset.path || '');
+  });
+})();
+
+function isImageName(name){
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  return ['jpg','jpeg','png','webp','gif','bmp','tif','tiff'].includes(ext);
+}
+function isVideoName(name){
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  return ['mp4','webm','mov','m4v','avi','mkv'].includes(ext);
+}
+
+function openViewer(filePath, fileName){
+  const modal = document.getElementById('viewer-modal');
+  const title = document.getElementById('viewer-title');
+  const close = document.getElementById('viewer-close');
+  const img   = document.getElementById('viewer-img');
+  const vid   = document.getElementById('viewer-video');
+  const note  = document.getElementById('viewer-note');
+
+  if (!modal || !title || !img || !vid) return;
+
+  title.textContent = fileName || '';
+  img.style.display = 'none';
+  vid.style.display = 'none';
+  vid.removeAttribute('src'); // stop any previous playback
+  vid.load();
+
+  const url = `/media?path=${encodeURIComponent(filePath)}`;
+
+  if (isImageName(fileName)) {
+    img.src = url;
+    img.style.display = '';
+    note.textContent = 'Image preview';
+  } else if (isVideoName(fileName)) {
+    vid.src = url; // Range-supported endpoint
+    vid.style.display = '';
+    note.textContent = 'Video preview (seeking supported)';
+  } else {
+    note.textContent = 'This file type is not previewable.';
+  }
+
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden','false');
+
+  function closeViewer(){
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden','true');
+    img.removeAttribute('src');
+    vid.pause();
+    vid.removeAttribute('src');
+    vid.load();
+    document.removeEventListener('keydown', escClose);
+  }
+  function escClose(e){ if (e.key === 'Escape') closeViewer(); }
+
+  close.onclick = closeViewer;
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeViewer();
+  });
+  document.addEventListener('keydown', escClose);
+}
+
 
 // ======================================================
 // Boot

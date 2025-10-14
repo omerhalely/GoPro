@@ -140,15 +140,24 @@
       </svg>
     </button>
 
-  <!-- Camera Preview (NEW) -->
-  <button id="preview-toggle" class="fab" aria-label="Preview" title="Camera Preview">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    <!-- Camera Preview -->
+    <button id="preview-toggle" class="fab" aria-label="Preview" title="Camera Preview">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+           xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M7 8h2l1.5-2h3L15 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z"
+              stroke="currentColor" stroke-width="1.6" />
+        <circle cx="12" cy="13" r="3.5" stroke="currentColor" stroke-width="1.6"/>
+      </svg>
+    </button>
+
+    <!-- Files -->
+    <button id="files-toggle" class="fab" aria-label="Saved files" title="Saved files">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
          xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <path d="M7 8h2l1.5-2h3L15 8h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Z"
-            stroke="currentColor" stroke-width="1.6" />
-      <circle cx="12" cy="13" r="3.5" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M7 18h10a4 4 0 0 0 0-8 5 5 0 0 0-9.8-1.5A3.5 3.5 0 0 0 7 18Z"
+            stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
-  </button>
+    </button>
 
     <!-- Shell -->
     <button id="shell-toggle" class="fab" aria-label="Toggle shell" title="Command Shell">
@@ -187,6 +196,17 @@
 
     <div class="small muted" id="preview-note"></div>
   </div>
+
+  <!-- Files Popout -->
+  <div id="files-pop" role="dialog" aria-modal="false" aria-label="Saved files">
+    <div class="files-head">
+      <strong>Saved files</strong>
+      <div class="files-breadcrumb" id="files-bc"></div>
+    </div>
+    <div id="files-list" class="files-list" aria-live="polite"></div>
+    <div class="files-foot small muted" id="files-foot">—</div>
+  </div>
+
 
   <!-- ===== Shell Drawer ===== -->
   <div id="shell-drawer" class="drawer" aria-hidden="true">
@@ -277,6 +297,21 @@
         <button id="confirm-cancel" class="modal-btn cancel">Cancel</button>
         <button id="confirm-ok" class="modal-btn ok">Confirm</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== Media Viewer Modal ===== -->
+  <div id="viewer-modal" class="viewer-modal" aria-hidden="true">
+    <div class="viewer-wrap">
+      <div class="viewer-head">
+        <div id="viewer-title" class="viewer-title"></div>
+        <button id="viewer-close" class="viewer-close" aria-label="Close">✕</button>
+      </div>
+      <div class="viewer-body">
+        <img id="viewer-img" alt="" />
+        <video id="viewer-video" controls playsinline></video>
+      </div>
+      <div id="viewer-note" class="viewer-note small muted"></div>
     </div>
   </div>
 
