@@ -2,20 +2,6 @@ from flask import Flask, jsonify, request, render_template, send_from_directory,
 import threading, time, os, subprocess, platform, mimetypes, cv2
 from utils import _res_to_str, _parse_res_str
 
-# Try imports of capture image and video
-try:
-    from ImageCapture import image_capture
-except Exception:
-    image_capture = None
-try:
-    from VideoCapture import video_capture
-except Exception:
-    video_capture = None
-try:
-    from picamera2 import Picamera2
-except Exception:
-    Picamera2 = None
-
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -45,6 +31,28 @@ VIDEO_FPS_DEFAULT = 25
 CURRENT_IMAGE_RES = list(IMAGE_RES_DEFAULT)  # [w, h]
 CURRENT_VIDEO_RES = list(VIDEO_RES_DEFAULT)  # [w, h]
 CURRENT_VIDEO_FPS = VIDEO_FPS_DEFAULT
+
+
+# Try imports of capture image and video
+try:
+    from ImageCapture import image_capture
+except Exception as e:
+    if not DEVELOPMENT_MODE:
+        print(e)
+    image_capture = None
+try:
+    from VideoCapture import video_capture
+except Exception as e:
+    if not DEVELOPMENT_MODE:
+        print(e)
+    video_capture = None
+try:
+    from picamera2 import Picamera2
+except Exception as e:
+    if not DEVELOPMENT_MODE:
+        print(e)
+    Picamera2 = None
+    
 
 # Tiny random float without importing random
 def randf(lo, hi):
@@ -88,12 +96,20 @@ def _run_capture_thread():
                 _picam2.stop()
                 _picam2.close()
                 _picam2 = None
+                
+            bitrate = 3_000_000  # For 640x480
+            if CURRENT_VIDEO_RES[0] == 320 and CURRENT_VIDEO_RES[1] == 240:
+                bitrate = 1_000_000
+            if CURRENT_VIDEO_RES[0] == 1280 and CURRENT_VIDEO_RES[1] == 960:
+                bitrate = 10_000_000
+                
             video_capture(
                 output_dir=save_dir,
                 stop_evt=_stop_evt,
                 width=CURRENT_VIDEO_RES[0],
                 height=CURRENT_VIDEO_RES[1],
                 fps=CURRENT_VIDEO_FPS,
+                bitrate=bitrate,
             )  # plug in on the Pi
 
     finally:
@@ -283,7 +299,7 @@ _preview_w = 640
 _preview_h = 480
 _preview_fps = 25
 
-def _ensure_picam2(width=_preview_w, height=_preview_h, fps=_preview_fps):
+def _ensure_picam2():
     """
     Lazily create and start a Picamera2 instance configured for preview.
     Returns a started Picamera2.
@@ -291,19 +307,26 @@ def _ensure_picam2(width=_preview_w, height=_preview_h, fps=_preview_fps):
     global _picam2
     with _picam_lock:
         if _picam2 is not None:
-            return _picam2
+            _picam2.stop()
+            _picam2.close()
+            _picam2 = None
 
         picam2 = Picamera2()  # alias for clarity
         # Use a lightweight preview configuration (RGB for easy encoding)
+        width = CURRENT_VIDEO_RES[0]
+        height = CURRENT_VIDEO_RES[1]
+        print(width, height)
         config = picam2.create_preview_configuration(
-            main={"size": (int(width), int(height)), "format": "RGB888"}
+            main={"size": (int(width), int(height)), "format": "RGB888"},
+            controls={
+                "FrameRate": CURRENT_VIDEO_FPS,
+                "AeEnable": True,
+                "Sharpness": 1.0,
+                "Contrast": 1.05,
+                "Saturation": 1.05,
+            }
         )
         picam2.configure(config)
-        try:
-            picam2.set_controls({"FrameRate": int(fps)})
-        except Exception as e:
-            # Some sensors ignore FrameRate; not fatal.
-            pass
         picam2.start()
         _picam2 = picam2
         return _picam2
@@ -319,8 +342,9 @@ def preview_mjpg():
         pass  # ignore if you don't use that flag
 
     try:
-        cam = _ensure_picam2(_preview_w, _preview_h, _preview_fps)
+        cam = _ensure_picam2()
     except Exception as e:
+        print(e)
         return jsonify({"ok": False, "error": f"camera init failed: {e}"}), 503
 
     def gen():

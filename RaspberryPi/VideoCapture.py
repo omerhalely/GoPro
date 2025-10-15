@@ -4,6 +4,7 @@ from picamera2.encoders import H264Encoder
 import RPi.GPIO as GPIO
 import cv2, psutil, threading, queue, time, os
 from datetime import datetime
+from typing import Union
 
 
 frame_queue = queue.Queue(maxsize=500)
@@ -56,15 +57,14 @@ def video_capture(
         height: int,
         fps: int,
         bitrate: int,
-        exposure_us: int | None = None,
-        analogue_gain: float | None = None,
+        exposure_us: Union[int, None] = None,
+        analogue_gain: Union[float, None] = None,
         inline_headers: bool = True
 ):
+    print(f"Capturing Video | FPS : {fps} | Height : {height} | Width : {width} |")
     output_path = get_path(output_dir)
     picam2 = Picamera2()
     
-    size = (int(640 // 2), int(480 // 2))
-    fps = 25
     config = picam2.create_preview_configuration(
         main={
             "size": (width, height),
@@ -76,7 +76,12 @@ def video_capture(
     )
     picam2.configure(config)
 
-    controls = {}
+    controls = {
+        "AeEnable": True,
+        "Sharpness": 1.0,
+        "Contrast": 1.05,
+        "Saturation": 1.05,
+    }
     if exposure_us is not None:
         controls["AeEnable"] = False,
         controls["ExposureTime"] = exposure_us
