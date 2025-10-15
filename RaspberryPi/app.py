@@ -22,10 +22,7 @@ import os
 import cv2
 import time
 import uuid
-import json
-import queue
 import shutil
-import errno
 import platform
 import threading
 import subprocess
