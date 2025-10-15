@@ -482,7 +482,8 @@ function setupWindowChips() {
   // Modal bits
   const modal   = document.getElementById('confirm-modal');
   const titleEl = document.getElementById('confirm-title');
-  const msgEl   = document.getElementById('confirm-msg');
+  // BUGFIX: match your HTML id="confirm-message"
+  const msgEl   = document.getElementById('confirm-message');
   const cancelBtn = document.getElementById('confirm-cancel');
   const okBtn     = document.getElementById('confirm-ok');
 
@@ -708,6 +709,7 @@ function setupWindowChips() {
 
 // ======================================================
 // FILES (popout: list dirs at root, then files inside)
+// Adds: Delete + Download buttons per file
 // ======================================================
 (function () {
   const btn   = document.getElementById('files-toggle');
@@ -760,7 +762,7 @@ function setupWindowChips() {
     const ext = name.includes('.') ? name.split('.').pop() : '';
 
     const videoExt = new Set(['avi', 'mp4', 'mov', 'mkv', 'm4v', 'webm']);
-    const imageExt = new Set(['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tif', 'tiff']);
+    const imageExt = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tif', 'tiff']);
 
     if (videoExt.has(ext)) {
       return {
@@ -796,6 +798,63 @@ function setupWindowChips() {
           <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.6"/>
         </svg>`
     };
+  }
+
+  // ---- NEW: Delete helpers (soft delete by default) ----
+  async function deletePath(pathRel, permanent=false) {
+    const res = await fetch('/delete', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ path: pathRel, permanent })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+    return data;
+  }
+
+  function confirmDelete(pathRel, type) {
+    if (!pathRel) return;
+    const modal = document.getElementById('confirm-modal');
+    const titleEl = document.getElementById('confirm-title');
+    const msgEl   = document.getElementById('confirm-message');
+    const okBtn   = document.getElementById('confirm-ok');
+    const cancel  = document.getElementById('confirm-cancel');
+
+    const label = (type === 'dir') ? 'folder' : 'file';
+    titleEl.textContent = `Delete ${label}?`;
+    msgEl.textContent   = `Are you sure you want to delete “${pathRel.split('/').pop()}”?`;
+
+    // open modal
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+
+    const onCancel = () => cleanup();
+    const onOk = async () => {
+      okBtn.disabled = true;
+      try {
+        await deletePath(pathRel, /*permanent=*/false); // soft delete
+        await loadPath(currentPath || '');              // refresh current listing
+      } catch (e) {
+        alert('Delete failed: ' + e.message);
+      } finally {
+        okBtn.disabled = false;
+        cleanup();
+      }
+    };
+    function cleanup(){
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+      okBtn.removeEventListener('click', onOk);
+      cancel.removeEventListener('click', onCancel);
+      document.removeEventListener('keydown', onEsc);
+    }
+    function onEsc(e){ if (e.key === 'Escape') cleanup(); }
+
+    okBtn.addEventListener('click', onOk);
+    cancel.addEventListener('click', onCancel);
+    document.addEventListener('keydown', onEsc);
   }
 
   function renderList(data){
@@ -852,9 +911,39 @@ function setupWindowChips() {
           meta.textContent = 'Folder';
         }
 
+        // ---- NEW: row actions (Delete + Download) ----
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.gap = '6px';
+        actions.style.marginLeft = '8px';
+
+        // Delete (both files & folders)
+        const delBtn = document.createElement('button');
+        delBtn.className = 'cfg-btn';
+        delBtn.textContent = 'Delete';
+        delBtn.title = 'Delete';
+        delBtn.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          confirmDelete(row.dataset.path, row.dataset.type);
+        });
+        actions.appendChild(delBtn);
+
+        // Download (files only)
+        if (e.type === 'file') {
+          const a = document.createElement('a');
+          a.className = 'cfg-btn';
+          a.textContent = 'Download';
+          a.title = 'Download';
+          a.href = `/media?path=${encodeURIComponent(e.path)}&download=1`;
+          a.download = e.name;                 // hint for browsers
+          a.addEventListener('click', (ev) => ev.stopPropagation()); // don't open viewer
+          actions.appendChild(a);
+        }
+
         row.appendChild(ico);
         row.appendChild(name);
         row.appendChild(meta);
+        row.appendChild(actions);
         list.appendChild(row);
       }
     }
@@ -892,21 +981,20 @@ function setupWindowChips() {
     if (!pop.contains(e.target) && e.target !== btn) closePop();
   });
 
-  // Navigate by clicking rows (dirs only navigate; files are non-action)
+  // Navigate by clicking rows (dirs navigate; files open viewer)
   list.addEventListener('click', (e) => {
-  const row = e.target.closest('.file-row');
-  if (!row) return;
-  const type = row.dataset.type;
-  const path = row.dataset.path || '';
-  const name = row.querySelector('.file-name')?.textContent || '';
+    const row = e.target.closest('.file-row');
+    if (!row) return;
+    const type = row.dataset.type;
+    const path = row.dataset.path || '';
+    const name = row.querySelector('.file-name')?.textContent || '';
 
-  if (type === 'dir') {
-    loadPath(path);
-  } else if (type === 'file') {
-    openViewer(path, name);
-  }
-});
-
+    if (type === 'dir') {
+      loadPath(path);
+    } else if (type === 'file') {
+      openViewer(path, name);
+    }
+  });
 
   // Breadcrumb navigation
   bcEl.addEventListener('click', (e) => {

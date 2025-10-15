@@ -24,3 +24,12 @@ def _res_to_str(res):
         return f"{w}x{h}"
     except Exception:
         return ""
+
+
+def _safe_under_base(base: str, rel: str) -> str:
+    """Resolve a user path and ensure it stays under base directory."""
+    rel = (rel or "").strip().lstrip("/\\")
+    target = os.path.abspath(os.path.join(base, rel))
+    if not target.startswith(base):
+        raise ValueError("Invalid path")
+    return target

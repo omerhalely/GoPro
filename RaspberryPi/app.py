@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request, render_template, send_from_directory, Response, stream_with_context
-import threading, time, os, subprocess, platform, mimetypes, cv2
-from utils import _res_to_str, _parse_res_str
+import threading, time, os, subprocess, platform, mimetypes, cv2, shutil, uuid
+from utils import _res_to_str, _parse_res_str, _safe_under_base
 
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -11,7 +11,7 @@ if not os.path.exists(DEFAULT_SAVE_DIR):
     os.mkdir(DEFAULT_SAVE_DIR)
 
 # ── DEV toggle ────────────────────────────────────────────────────────────────
-DEVELOPMENT_MODE = False  # ← set False on the Raspberry Pi for real actions
+DEVELOPMENT_MODE = True  # ← set False on the Raspberry Pi for real actions
 
 # ── Shell console settings ────────────────────────────────────────────────────
 SHELL_ENABLED = True               # ⚠️ Anyone with page access can run commands
@@ -427,17 +427,103 @@ def list_files():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/delete", methods=["POST"])
+def delete_entry():
+    """
+    JSON body: {"path": "relative/path/from/CURRENT_SAVE_DIR",
+                "permanent": false }   # default false → soft delete (move to .trash)
+    Soft delete: move to <CURRENT_SAVE_DIR>/.trash/<unique_name>
+    Permanent: remove file or recursively remove directory
+    """
+    base = os.path.abspath(CURRENT_SAVE_DIR)
+
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+    except Exception:
+        body = {}
+
+    rel = (body.get("path") or "").strip()
+    permanent = bool(body.get("permanent", False))
+
+    if not rel:
+        return jsonify({"ok": False, "error": "Missing 'path'"}), 400
+
+    # Prevent deleting the root save dir itself
+    try:
+        target = _safe_under_base(base, rel)
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+    if not os.path.exists(target):
+        return jsonify({"ok": False, "error": "Not found"}), 404
+
+    # Extra guard: do not allow deleting the base itself or going above
+    if os.path.abspath(target) == base:
+        return jsonify({"ok": False, "error": "Refusing to delete the root directory"}), 400
+
+    try:
+        if permanent:
+            if os.path.isdir(target) and not os.path.islink(target):
+                shutil.rmtree(target)
+            else:
+                os.remove(target)
+            action = "deleted"
+        else:
+            # Soft delete → move to .trash with a unique name
+            trash_dir = os.path.join(base, ".trash")
+            os.makedirs(trash_dir, exist_ok=True)
+
+            name = os.path.basename(target.rstrip(os.sep)) or "item"
+            uid = uuid.uuid4().hex[:8]
+            # Preserve extension for files
+            root, ext = os.path.splitext(name)
+            trash_name = f"{root}_{uid}{ext}" if ext else f"{name}_{uid}"
+            dest = os.path.join(trash_dir, trash_name)
+
+            shutil.move(target, dest)
+            action = "moved_to_trash"
+
+        # Recompute disk free after the operation
+        free_pct = _read_disk_free_percent(CURRENT_SAVE_DIR)
+        return jsonify({
+            "ok": True,
+            "action": action,
+            "path": rel,
+            "disk_free_pct": None if free_pct is None else round(free_pct, 1)
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/trash/empty", methods=["POST"])
+def empty_trash():
+    base = os.path.abspath(CURRENT_SAVE_DIR)
+    trash_dir = os.path.join(base, ".trash")
+    if not os.path.isdir(trash_dir):
+        return jsonify({"ok": True, "emptied": 0})
+    count = 0
+    try:
+        for name in os.listdir(trash_dir):
+            path = os.path.join(trash_dir, name)
+            try:
+                if os.path.isdir(path) and not os.path.islink(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+                count += 1
+            except Exception:
+                continue
+        free_pct = _read_disk_free_percent(CURRENT_SAVE_DIR)
+        return jsonify({"ok": True, "emptied": count,
+                        "disk_free_pct": None if free_pct is None else round(free_pct, 1)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/media", methods=["GET"])
 def serve_media():
-    """
-    GET /media?path=relative/path/from/CURRENT_SAVE_DIR
-    - Validates path stays inside CURRENT_SAVE_DIR
-    - Sets correct mimetype
-    - Supports Range requests for video/audio
-    """
     rel = (request.args.get("path") or "").strip().lstrip("/\\")
     base = os.path.abspath(CURRENT_SAVE_DIR)
     target = os.path.abspath(os.path.join(base, rel))
+    force_download = (request.args.get("download") in ("1", "true", "yes"))
 
     if not target.startswith(base):
         return jsonify({"ok": False, "error": "Invalid path"}), 400
@@ -449,10 +535,15 @@ def serve_media():
     if not mime:
         mime = "application/octet-stream"
 
-    # Handle Range requests (bytes=START-END)
+    # Helper to add download headers
+    def add_download_headers(rv):
+        if force_download:
+            # Force save-as; suggest the filename from the path
+            rv.headers.add("Content-Disposition", f'attachment; filename="{os.path.basename(target)}"')
+        return rv
+
     range_header = request.headers.get("Range", None)
     if range_header:
-        # Example: "bytes=0-" or "bytes=1000-2000"
         try:
             units, rng = range_header.split("=")
             if units.strip() != "bytes":
@@ -463,8 +554,7 @@ def serve_media():
             start = max(0, start)
             end = min(end, file_size - 1)
             if start > end:
-                start = 0
-                end = file_size - 1
+                start, end = 0, file_size - 1
         except Exception:
             start, end = 0, file_size - 1
 
@@ -482,14 +572,13 @@ def serve_media():
                     remaining -= len(data)
                     yield data
 
-        rv = Response(generate(), status=206, mimetype=mime,
-                      direct_passthrough=True)
+        rv = Response(generate(), status=206, mimetype=mime, direct_passthrough=True)
         rv.headers.add("Content-Range", f"bytes {start}-{end}/{file_size}")
         rv.headers.add("Accept-Ranges", "bytes")
         rv.headers.add("Content-Length", str(length))
-        return rv
+        return add_download_headers(rv)
 
-    # No range: return full file
+    # No range: full file
     def generate_full():
         with open(target, "rb") as f:
             while True:
@@ -501,7 +590,8 @@ def serve_media():
     rv = Response(generate_full(), mimetype=mime, direct_passthrough=True)
     rv.headers.add("Content-Length", str(file_size))
     rv.headers.add("Accept-Ranges", "bytes")
-    return rv
+    return add_download_headers(rv)
+
 
 # ── Config endpoints ──────────────────────────────────────────────────────────
 @app.route("/config", methods=["GET"])
