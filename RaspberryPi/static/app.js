@@ -29,7 +29,9 @@ const ThemeController = (() => {
     document.body.classList.toggle('light', mode === 'light');
     const icon = document.getElementById('theme-icon');
     if (icon) icon.textContent = (mode === 'light') ? '🌞' : '🌙';
-  }
+    // force charts to refresh with the new grid color
+    if (typeof redrawAllSparklines === 'function') redrawAllSparklines();
+}
 
   function load() {
     const stored = localStorage.getItem(KEY);
@@ -188,9 +190,11 @@ function drawSparkline(canvas, series, {min=null, max=null} = {}) {
 
   const pad = 6 * devicePixelRatio;
 
-  // mid grid line
+  // --- single mid grid line: white in dark mode, gray in light mode ---
+  const isLight = document.body.classList.contains('light');
+  const gridColor = isLight ? '#2a3346' : '#ffffff';
   ctx.globalAlpha = 0.25;
-  ctx.strokeStyle = "#2a3346";
+  ctx.strokeStyle = gridColor;
   ctx.beginPath();
   const midY = h - pad - (((lo+hi)/2 - lo) / (hi - lo)) * (h - 2*pad);
   ctx.moveTo(pad, midY);
@@ -210,6 +214,15 @@ function drawSparkline(canvas, series, {min=null, max=null} = {}) {
   }
   ctx.stroke();
 }
+
+function redrawAllSparklines() {
+  drawSparkline(document.getElementById('cur'), buf.cur, {min:0});
+  drawSparkline(document.getElementById('vol'), buf.vol);
+  drawSparkline(document.getElementById('cpu'), buf.cpu, {min:0, max:100});
+  drawSparkline(document.getElementById('ram'), buf.ram, {min:0, max:100});
+  drawSparkline(document.getElementById('mhz'), buf.mhz);
+}
+
 
 async function tick(){
   const m = await api('/metrics');
