@@ -27,6 +27,8 @@ import platform
 import threading
 import subprocess
 import mimetypes
+import io
+import datetime as dt
 from typing import Optional, Tuple
 
 from flask import (
@@ -132,6 +134,41 @@ _picam2 = None
 _picam_lock = threading.Lock()
 _preview_fps = 25
 
+# ===== Logger (concise; no thread; rotate on write) =====
+LOG_RESET_HOURS_DEFAULT = 24
+_log_reset_hours = LOG_RESET_HOURS_DEFAULT
+_log_started = dt.datetime.now()
+_log_path = os.path.abspath(f"./log_{_log_started.strftime('%Y%m%d_%H%M%S')}.txt")
+_log_max_return_bytes = 200 * 1024  # when serving to UI, tail up to 200KB
+os.makedirs(os.path.dirname(_log_path) or ".", exist_ok=True)
+
+def _log_rotate_if_needed(now: dt.datetime | None = None):
+    """Rotate (start a new file) if the reset interval has elapsed."""
+    global _log_started, _log_path
+    now = now or dt.datetime.now()
+    elapsed = (now - _log_started).total_seconds() / 3600.0
+    if elapsed >= max(1, float(_log_reset_hours)):
+        _log_started = now
+        _log_path = os.path.abspath(f"./log_{_log_started.strftime('%Y%m%d_%H%M%S')}.txt")
+        try:
+            with open(_log_path, "w", encoding="utf-8") as f:
+                f.write(f"=== New log started at {now.isoformat(timespec='seconds')} (reset_hours={_log_reset_hours}) ===\n")
+        except Exception:
+            pass  # don't crash logger
+
+def _log(level: str, message: str):
+    """Concise logger: rotate if needed, then append one line."""
+    try:
+        _log_rotate_if_needed()
+        ts = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        line = f"{ts} [{level}] {message}\n"
+        with open(_log_path, "a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception:
+        # Never break the app on logging failure
+        pass
+
+
 # -----------------------------------------------------------------------------
 # Helpers (parsing/formatting)
 # -----------------------------------------------------------------------------
@@ -236,7 +273,7 @@ def _apply_preview_controls_if_running() -> bool:
             _picam2.set_controls(_effective_controls_dict(_preview_ctrls))
             return True
         except Exception as e:
-            print("[preview_controls] apply failed:", e)
+            _log("ERROR", f"image:capture failed: {e}")
             return False
 
 def _res_to_str(res: Tuple[int, int] | list[int]) -> str:
@@ -298,7 +335,7 @@ def _run_capture_thread() -> None:
         try:
             os.makedirs(save_dir, exist_ok=True)
         except Exception as e:
-            print(f"[capture][error] Could not create output directory '{save_dir}': {e}")
+            _log("ERROR", f"image:capture failed: {e}")
             return
 
         print(f"[capture] Saving video to: {save_dir}")
@@ -560,6 +597,7 @@ def start_capture():
             return jsonify({"error": "Capture already running"}), 409
         _stop_evt.clear()
         _is_running = True
+        _log("INFO", f"capture:start save_dir='{CURRENT_SAVE_DIR}' res={CURRENT_VIDEO_RES} fps={CURRENT_VIDEO_FPS}")
         _last_start_ts = int(time.time())
         _capture_thread = threading.Thread(target=_run_capture_thread, daemon=True)
         _capture_thread.start()
@@ -575,6 +613,7 @@ def stop_capture():
         JSON: {"status": "stop signaled"}
     """
     _stop_evt.set()
+    _log("INFO", "capture:stop signaled")
     return jsonify({"status": "stop signaled"})
 
 
@@ -607,6 +646,7 @@ def capture_image_endpoint():
     try:
         os.makedirs(save_dir, exist_ok=True)
     except Exception as e:
+        _log("ERROR", f"image:capture failed: {e}")
         return jsonify({"ok": False, "error": f"Cannot create directory: {e}"}), 500
 
     # Call real capture if available
@@ -615,14 +655,17 @@ def capture_image_endpoint():
             path = image_capture(save_dir)  # your function should return full path
             if not path:
                 return jsonify({"ok": False, "error": "capture_image() returned no path"}), 500
+            _log("INFO", f"image:capture path='{path}'")
             return jsonify({"ok": True, "path": path, "dev": False})
         else:
             # DEV fallback: return a predictable filename (not actually created here)
             ts = int(time.time())
             fname = f"snapshot_{ts}.jpg"
             fpath = os.path.join(save_dir, fname)
+            _log("INFO", f"image:capture path='{fpath}'")
             return jsonify({"ok": True, "path": fpath, "dev": True})
     except Exception as e:
+        _log("ERROR", f"image:capture failed: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -647,7 +690,7 @@ def preview_mjpg():
     try:
         cam = _ensure_picam2()
     except Exception as e:
-        print("[preview] init failed:", e)
+        _log("ERROR", f"image:capture failed: {e}")
         return jsonify({"ok": False, "error": f"camera init failed: {e}"}), 503
 
     def gen():
@@ -753,6 +796,7 @@ def list_files():
         try:
             names = os.listdir(target)
         except Exception as e:
+            _log("ERROR", f"image:capture failed: {e}")
             return jsonify({"ok": False, "error": f"Cannot list directory: {e}"}), 500
 
         names.sort(key=lambda n: (not os.path.isdir(os.path.join(target, n)), n.lower()))
@@ -779,6 +823,7 @@ def list_files():
             "entries": entries
         })
     except Exception as e:
+        _log("ERROR", f"image:capture failed: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -929,6 +974,7 @@ def delete_entry():
             action = "moved_to_trash"
 
         free_pct = _read_disk_free_percent(CURRENT_SAVE_DIR)
+        _log("INFO", f"fs:{action} path='{rel}'")
         return jsonify({
             "ok": True,
             "action": action,
@@ -936,6 +982,7 @@ def delete_entry():
             "disk_free_pct": None if free_pct is None else round(free_pct, 1)
         })
     except Exception as e:
+        _log("ERROR", f"image:capture failed: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -951,6 +998,8 @@ def get_config():
     Returns:
         JSON with development_mode, directories, resolutions, FPS, LED.
     """
+    _log("INFO", f"config:update save_dir='{CURRENT_SAVE_DIR}' img={_res_to_str(CURRENT_IMAGE_RES)} "
+                 f"vid={_res_to_str(CURRENT_VIDEO_RES)} fps={CURRENT_VIDEO_FPS}")
     return jsonify({
         "development_mode": DEVELOPMENT_MODE,
         "save_dir_default": DEFAULT_SAVE_DIR,
@@ -1061,6 +1110,7 @@ def power_action():
         subprocess.Popen(cmd)  # do not wait
         return jsonify({"ok": True, "dev": False, "action": action, "message": f"{action} command sent."})
     except Exception as e:
+        _log("ERROR", f"image:capture failed: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -1147,6 +1197,7 @@ def run_shell():
             )
         elapsed = time.time() - start
     except subprocess.TimeoutExpired as e:
+        _log("ERROR", f"shell:timeout cmd='{cmd}'")
         return jsonify({
             "ok": False, "timeout": True, "code": None,
             "elapsed_sec": round(time.time() - start, 3),
@@ -1158,6 +1209,7 @@ def run_shell():
     stdout = (res.stdout or "")[:SHELL_MAX_CHARS]
     stderr = (res.stderr or "")[:SHELL_MAX_CHARS]
 
+    _log("INFO", f"shell:run cmd='{cmd}' timeout={timeout}s")
     return jsonify({
         "ok": res.returncode == 0,
         "code": res.returncode,
@@ -1166,6 +1218,67 @@ def run_shell():
         "stderr": stderr,
         "ran": exec_cmd,
     })
+
+@app.route("/log", methods=["GET"])
+def get_log():
+    """
+    Return tail of the current log file (read-only).
+    JSON: { ok, path, started_ts, reset_hours, size, mtime, text }
+    """
+    try:
+        path = _log_path
+        try:
+            st = os.stat(path)
+            size = st.st_size
+            mtime = st.st_mtime
+        except FileNotFoundError:
+            size = 0
+            mtime = None
+
+        text = ""
+        if os.path.exists(path) and os.path.isfile(path):
+            with open(path, "rb") as f:
+                if size > _log_max_return_bytes:
+                    f.seek(-_log_max_return_bytes, io.SEEK_END)
+                    text = f.read().decode("utf-8", errors="replace")
+                    text = "[…truncated…]\n" + text
+                else:
+                    text = f.read().decode("utf-8", errors="replace")
+
+        return jsonify({
+            "ok": True,
+            "path": path,
+            "started_ts": int(_log_started.timestamp()),
+            "reset_hours": _log_reset_hours,
+            "size": size,
+            "mtime": mtime,
+            "text": text
+        })
+    except Exception as e:
+        _log("ERROR", f"log:get failed: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/log/config", methods=["POST", "GET"])
+def log_config():
+    """
+    GET -> { ok, reset_hours }
+    POST -> { ok, reset_hours } with body: { "reset_hours": int(1..720) }
+    """
+    global _log_reset_hours
+    if request.method == "GET":
+        return jsonify({"ok": True, "reset_hours": _log_reset_hours})
+
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        hrs = int(body.get("reset_hours", _log_reset_hours))
+        hrs = max(1, min(hrs, 720))  # 1h .. 30d
+        _log_reset_hours = hrs
+        _log("INFO", f"log:reset_hours set to {hrs}")
+        return jsonify({"ok": True, "reset_hours": _log_reset_hours})
+    except Exception as e:
+        _log("ERROR", f"log:config error: {e}")
+        return jsonify({"ok": False, "error": str(e)}), 400
 
 
 # -----------------------------------------------------------------------------

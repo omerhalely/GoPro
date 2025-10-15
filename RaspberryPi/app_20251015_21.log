@@ -1,0 +1,11 @@
+21:38:12 INFO [logger] started (rotation=24h) -> app_20251015_21.log
+21:38:12 INFO server:start DEV=True dir=C:\Users\user\Documents\GitHub\GoPro\RaspberryPi\outputs logH=24
+21:38:49 INFO shell:run 'ipconfig'
+21:38:53 INFO shell:run 'cls'
+21:39:01 INFO shell:run 'clear'
+21:39:01 ERROR error:shell code=1 cmd='clear'
+21:39:04 INFO shell:run 'cls'
+21:39:26 INFO api:/start
+21:39:26 INFO capture:start dir=C:\Users\user\Documents\GitHub\GoPro\RaspberryPi\outputs res=[640, 480] fps=25
+21:39:37 INFO api:/stop
+21:39:38 INFO capture:stop

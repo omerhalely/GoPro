@@ -281,6 +281,47 @@ input:checked + .slider:before{ transform:translateX(18px); }
   }
 }
 
+/* ===== Logger Popout (read-only) ===== */
+#log-pop{
+  position: fixed;
+  right: calc(60px + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0;
+  display: none;
+  flex-direction: column;
+  gap: 0;
+  z-index: 2001;
+  box-shadow: 0 0 12px rgba(0,0,0,0.35);
+  width: 520px;
+  max-width: calc(100vw - 90px);
+  max-height: 70vh;
+}
+#log-pop.open{ display:flex; }
+
+.log-head{
+  display:flex; align-items:center; gap:10px;
+  padding:12px 14px; border-bottom:1px solid var(--border);
+}
+.log-actions{ margin-left:auto; display:flex; gap:8px; }
+.log-body{
+  margin:0; padding:12px 14px; overflow:auto; white-space:pre-wrap; word-break:break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  background: #0c0f14;
+  border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;
+  max-height: 60vh;
+}
+
+@media (max-width:768px){
+  #log-pop{
+    right:10px; top:auto; bottom:70px; transform:none;
+    width: calc(100vw - 20px); max-height: 60vh;
+  }
+}
+
 /* ===== Capture 'Saved' badge ===== */
 .badge{
   display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600;

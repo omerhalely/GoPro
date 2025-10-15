@@ -23,8 +23,8 @@
 
         <!-- Start / Stop -->
         <div class="grid2">
-          <button class="btn start" onclick="startCapture()">START</button>
-          <button class="btn stop"  onclick="stopCapture()">STOP</button>
+          <button class="btn start" onclick="startCapture()">START RECORDING</button>
+          <button class="btn stop"  onclick="stopCapture()">STOP RECORDING</button>
         </div>
 
         <!-- Capture Image (NEW) -->
@@ -169,6 +169,15 @@
       </svg>
     </button>
 
+    <!-- Logger (read-only) -->
+    <button id="log-toggle" class="fab" aria-label="Logger" title="Logger">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+         xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M7.5 8.5h9M7.5 12h9M7.5 15.5h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </button>
+
     <!-- Settings -->
     <button id="config-toggle" class="fab" aria-label="Open settings" title="Settings">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
@@ -207,6 +216,17 @@
     <div class="files-foot small muted" id="files-foot">—</div>
   </div>
 
+  <!-- Logger Popout (read-only) -->
+  <div id="log-pop" role="dialog" aria-modal="false" aria-label="Application log">
+    <div class="log-head">
+      <strong>Logger</strong>
+      <div class="log-meta small muted" id="log-meta">—</div>
+      <div class="log-actions">
+        <button id="log-refresh" class="cfg-btn" title="Refresh">Refresh</button>
+      </div>
+    </div>
+    <pre id="log-body" class="log-body" aria-live="polite"></pre>
+  </div>
 
   <!-- ===== Shell Drawer ===== -->
   <div id="shell-drawer" class="drawer" aria-hidden="true">
@@ -284,6 +304,16 @@
                class="cfg-inp" style="max-width:120px" placeholder="FPS" />
         <button id="cfg-vid-reset" class="cfg-btn">Default</button>
       </div>
+    </div>
+
+    <div class="cfg-row">
+      <div class="cfg-label">Logger</div>
+      <div class="cfg-flex" style="gap:10px;">
+        <input id="cfg-log-hours" type="number" min="1" max="720" step="1"
+               class="cfg-inp" style="max-width:140px" placeholder="Reset hours" />
+        <button id="cfg-log-hours-default" class="cfg-btn" title="Reset to 24h">Default</button>
+      </div>
+      <div class="cfg-small">The log file rotates when the interval elapses (no background thread).</div>
     </div>
 
   </div>

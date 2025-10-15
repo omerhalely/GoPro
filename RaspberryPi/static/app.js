@@ -354,13 +354,13 @@ function setupWindowChips() {
   const ledToggle = document.getElementById('cfg-led');
   const modeNote = document.getElementById('cfg-mode-note');
   const ledNote  = document.getElementById('cfg-led-note');
-
-  // NEW: resolution/FPS inputs
   const imgResInput = document.getElementById('cfg-img-res');
   const imgResReset = document.getElementById('cfg-img-res-reset');
   const vidResInput = document.getElementById('cfg-vid-res');
   const vidFpsInput = document.getElementById('cfg-vid-fps');
   const vidReset    = document.getElementById('cfg-vid-reset');
+  const logHoursInput  = document.getElementById('cfg-log-hours');
+  const logHoursReset  = document.getElementById('cfg-log-hours-default');
 
   function isOpen() { return drawer.classList.contains('open'); }
   function openDrawer() {
@@ -399,6 +399,20 @@ function setupWindowChips() {
     // Also reflect save dir elsewhere in UI
     document.getElementById('save_dir').textContent  = cfg.save_dir_current ?? '—';
     document.getElementById('disk_path').textContent = cfg.save_dir_current ?? '—';
+
+    try {
+      const lr = await (await fetch('/log/config', {cache:'no-store'})).json();
+      if (lr && lr.ok) {
+        logHoursInput.value = lr.reset_hours ?? 24;
+        logHoursInput.dataset.default = 24;
+      } else {
+        logHoursInput.value = 24;
+        logHoursInput.dataset.default = 24;
+      }
+    } catch {
+      logHoursInput.value = 24;
+      logHoursInput.dataset.default = 24;
+    }
   }
 
   // Debounced auto-apply for any input in this drawer
@@ -420,6 +434,20 @@ function setupWindowChips() {
       refreshStatus();
     }, 300);
   }
+
+  let logTimer = null;
+  function scheduleApplyLogCfg() {
+    if (logTimer) clearTimeout(logTimer);
+    logTimer = setTimeout(async () => {
+      const hrs = Math.max(1, Math.min(parseInt(logHoursInput.value || '24', 10), 720));
+      await fetch('/log/config', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ reset_hours: hrs })
+      });
+    }, 300);
+  }
+
 
   async function restoreDefaultPath() {
     const r = await fetch('/config', {cache:'no-store'});
@@ -470,6 +498,12 @@ function setupWindowChips() {
   });
 
   ledToggle.addEventListener('change', applyLed);
+
+  logHoursInput.addEventListener('input', scheduleApplyLogCfg);
+  logHoursReset.addEventListener('click', () => {
+    logHoursInput.value = logHoursInput.dataset.default || 24;
+    scheduleApplyLogCfg();
+  });
 })();
 
 // ======================================================
@@ -1305,6 +1339,61 @@ function openViewer(filePath, fileName){
   document.addEventListener('keydown', escClose);
 }
 
+// ======================================================
+// LOGGER (popout, read-only)
+// ======================================================
+(function () {
+  const btn   = document.getElementById('log-toggle');
+  const pop   = document.getElementById('log-pop');
+  const body  = document.getElementById('log-body');
+  const meta  = document.getElementById('log-meta');
+  const refreshBtn = document.getElementById('log-refresh');
+
+  function isOpen(){ return pop && pop.classList.contains('open'); }
+  function openPop() {
+    PanelController.closeAll('log');
+    pop.classList.add('open');
+    btn && btn.classList.add('active');
+    loadLog();
+  }
+  function closePop() {
+    pop.classList.remove('open');
+    btn && btn.classList.remove('active');
+  }
+  function togglePop() { isOpen() ? closePop() : openPop(); }
+
+  PanelController.register({ log: { close: closePop } });
+
+  async function loadLog(){
+    try{
+      const r = await fetch('/log', { cache: 'no-store' });
+      const data = await r.json();
+      if (!r.ok || !data.ok) {
+        body.textContent = 'Error: ' + (data.error || r.statusText);
+        meta.textContent = '—';
+        return;
+      }
+      body.textContent = data.text || '[empty]';
+      const started = data.started_ts ? new Date(data.started_ts*1000).toLocaleString() : '—';
+      const sizeKB  = Math.round(((data.size || 0) / 1024) * 10) / 10;
+      meta.textContent = `File: ${data.path.split(/[\\/]/).pop() || '—'} • Since: ${started} • Reset: ${data.reset_hours}h • Size: ${sizeKB} KB`;
+      body.scrollTop = body.scrollHeight;
+    } catch(e){
+      body.textContent = 'Error: ' + String(e);
+      meta.textContent = '—';
+    }
+  }
+
+  btn && btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    togglePop();
+  });
+  document.addEventListener('click', (e) => {
+    if (!pop) return;
+    if (!pop.contains(e.target) && e.target !== btn) closePop();
+  });
+  refreshBtn && refreshBtn.addEventListener('click', loadLog);
+})();
 
 // ======================================================
 // Boot

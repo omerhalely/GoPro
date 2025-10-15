@@ -1,0 +1,2 @@
+2025-10-15 22:06:40 [INFO] shell:run cmd='ipconfig' timeout=15s
+2025-10-15 22:06:45 [INFO] config:update save_dir='./outputs' img=640x480 vid=640x480 fps=25
