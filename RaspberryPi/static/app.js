@@ -593,6 +593,9 @@ function setupWindowChips() {
 
 // ======================================================
 // PREVIEW (popover + MJPEG in PROD, canvas placeholder in DEV)
+// + Live controls (AE, Exposure, Gains, Bright/Contrast/Saturation/Sharpness)
+// + Reset Defaults
+// + 📸 Capture Image button placed UNDER the preview image and ABOVE the sliders
 // ======================================================
 (function () {
   const btn  = document.getElementById('preview-toggle');
@@ -603,7 +606,12 @@ function setupWindowChips() {
 
   let devAnim = null;
   let isDevMode = null; // resolved on first open
+  let uiBuilt = false;
 
+  // UI refs
+  const ui = {};
+
+  // ---------- Utilities ----------
   function isOpen(){ return pop && pop.classList.contains('open'); }
   function openPop() {
     PanelController.closeAll('preview');
@@ -613,13 +621,8 @@ function setupWindowChips() {
   function closePop() {
     pop.classList.remove('open');
     btn && btn.classList.remove('active');
-    // stop stream
     if (feed) feed.src = '';
-    // stop dev anim
-    if (devAnim) {
-      cancelAnimationFrame(devAnim);
-      devAnim = null;
-    }
+    if (devAnim) { cancelAnimationFrame(devAnim); devAnim = null; }
   }
   function togglePop() { isOpen() ? closePop() : openPop(); }
 
@@ -637,24 +640,13 @@ function setupWindowChips() {
       const cx = W/2 + Math.cos(t/20)*W/4;
       const cy = H/2 + Math.sin(t/30)*H/4;
       const r  = 40 + 10*Math.sin(t/15);
-      // lens ring
-      ctx.beginPath();
-      ctx.arc(cx, cy, r+8, 0, Math.PI*2);
-      ctx.strokeStyle = '#2f81f7';
-      ctx.lineWidth = 6;
-      ctx.stroke();
-      // inner
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI*2);
-      ctx.fillStyle = '#1e784d';
-      ctx.fill();
-
-      ctx.fillStyle = '#9da7b3';
-      ctx.font = '14px system-ui';
+      ctx.beginPath(); ctx.arc(cx, cy, r+8, 0, Math.PI*2);
+      ctx.strokeStyle = '#2f81f7'; ctx.lineWidth = 6; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+      ctx.fillStyle = '#1e784d'; ctx.fill();
+      ctx.fillStyle = '#9da7b3'; ctx.font = '14px system-ui';
       ctx.fillText('DEV PREVIEW (no camera)', 12, H - 12);
-
-      t++;
-      devAnim = requestAnimationFrame(loop);
+      t++; devAnim = requestAnimationFrame(loop);
     })();
   }
 
@@ -664,28 +656,279 @@ function setupWindowChips() {
       const cfg = await (await fetch('/config', {cache:'no-store'})).json();
       isDevMode = !!cfg.development_mode;
     } catch {
-      isDevMode = true; // safest fallback: treat as DEV
+      isDevMode = true; // safest fallback
     }
     return isDevMode;
   }
 
+  // ---------- Controls UI ----------
+  function ensureControlsUI(){
+    if (uiBuilt || !pop) return;
+    uiBuilt = true;
+
+    // --- Top toolbar with Capture button (sits below image, above sliders) ---
+    const toolbar = document.createElement('div');
+    toolbar.style.display = 'flex';
+    toolbar.style.gap = '8px';
+    toolbar.style.alignItems = 'center';
+    toolbar.style.marginTop = '6px';
+    toolbar.style.marginBottom = '6px';
+
+    const capBtn = document.createElement('button');
+    capBtn.textContent = '📸 Capture Image';
+    capBtn.className = 'cfg-btn';
+    capBtn.style.padding = '8px 12px';
+    capBtn.id = 'pv-capture';
+
+    const capMsg = document.createElement('span');
+    capMsg.className = 'small muted mono';
+    capMsg.style.marginLeft = '8px';
+
+    toolbar.appendChild(capBtn);
+    toolbar.appendChild(capMsg);
+
+    // Place toolbar directly under the preview note (i.e., under the image)
+    if (note) note.insertAdjacentElement('afterend', toolbar);
+
+    // --- Controls grid panel (sliders) ---
+    const panel = document.createElement('div');
+    panel.id = 'preview-ctrls';
+    panel.style.display = 'grid';
+    panel.style.gridTemplateColumns = 'repeat(2, minmax(0,1fr))';
+    panel.style.gap = '8px';
+    panel.style.marginTop = '6px';
+
+    function mkRow(label, input, rightEl=null){
+      const wrap = document.createElement('div');
+      wrap.className = 'tile';
+      wrap.style.display = 'flex';
+      wrap.style.flexDirection = 'column';
+      wrap.style.gap = '6px';
+      wrap.style.padding = '8px';
+      const head = document.createElement('div');
+      head.className = 'small muted';
+      head.style.display = 'flex';
+      head.style.justifyContent = 'space-between';
+      const l = document.createElement('span'); l.textContent = label;
+      head.appendChild(l);
+      if (rightEl) head.appendChild(rightEl);
+      wrap.appendChild(head);
+      wrap.appendChild(input);
+      return wrap;
+    }
+
+    function mkRange(id, min, max, step, initVal, suffix=''){
+      const box = document.createElement('div');
+      box.style.display = 'flex';
+      box.style.alignItems = 'center';
+      box.style.gap = '8px';
+
+      const inp = document.createElement('input');
+      inp.id = id;
+      inp.type = 'range';
+      inp.min = String(min);
+      inp.max = String(max);
+      inp.step = String(step);
+      if (initVal !== undefined) inp.value = String(initVal);
+      inp.className = 'cfg-inp';
+      inp.style.padding = '0';
+      inp.style.flex = '1';
+
+      const val = document.createElement('span');
+      val.className = 'small mono muted';
+      val.textContent = (initVal ?? inp.value) + (suffix || '');
+
+      inp.addEventListener('input', () => { val.textContent = inp.value + (suffix || ''); });
+
+      box.appendChild(inp);
+      box.appendChild(val);
+      return { box, inp, val };
+    }
+
+    function mkCheck(id, text='Enabled'){
+      const line = document.createElement('label');
+      line.className = 'small';
+      line.style.display = 'flex';
+      line.style.alignItems = 'center';
+      line.style.gap = '8px';
+      const inp = document.createElement('input');
+      inp.id = id;
+      inp.type = 'checkbox';
+      const txt = document.createElement('span'); txt.textContent = text;
+      line.appendChild(inp); line.appendChild(txt);
+      return { line, inp };
+    }
+
+    // ---- Controls ----
+    const ae  = mkCheck('pv-ae', 'Enabled');                  ui.ae = ae.inp;
+
+    // ExposureTime slider: 100–200000 μs (0.1–200 ms), step 100
+    const et  = mkRange('pv-exposure', 100, 200000, 100, 10000, ' μs'); ui.et = et.inp;
+
+    // Analogue/Digital Gain sliders: 1.0–16.0, step 0.1
+    const ag  = mkRange('pv-analoggain', 1.0, 16.0, 0.1, 1.0, '×'); ui.ag = ag.inp;
+    const dg  = mkRange('pv-digitalgain', 1.0, 16.0, 0.1, 1.0, '×'); ui.dg = dg.inp;
+
+    // Tone sliders
+    const bri = mkRange('pv-brightness', -1.0, 1.0, 0.05, 0.0); ui.bri = bri.inp;
+    const con = mkRange('pv-contrast',    0.0, 2.0, 0.05, 1.0); ui.con = con.inp;
+    const sat = mkRange('pv-saturation',  0.0, 2.0, 0.05, 1.0); ui.sat = sat.inp;
+    const sha = mkRange('pv-sharpness',   0.0, 2.0, 0.05, 1.0); ui.sha = sha.inp;
+
+    // Reset button (top-right of the AE tile)
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = 'Reset to Defaults';
+    resetBtn.className = 'cfg-btn';
+    resetBtn.style.padding = '6px 10px';
+
+    // Layout: PANELS GO UNDER THE TOOLBAR (so capture button is above them)
+    panel.appendChild(mkRow('Auto Exposure (AeEnable)', ae.line, resetBtn));
+    panel.appendChild(mkRow('Exposure Time (μs)', et.box));
+    panel.appendChild(mkRow('Analogue Gain (×)', ag.box));
+    panel.appendChild(mkRow('Digital Gain (×)',  dg.box));
+    panel.appendChild(mkRow('Brightness (−1..+1)', bri.box));
+    panel.appendChild(mkRow('Contrast (0..2)',     con.box));
+    panel.appendChild(mkRow('Saturation (0..2)',   sat.box));
+    panel.appendChild(mkRow('Sharpness (0..2)',    sha.box));
+
+    // Insert the sliders panel **after the toolbar**
+    toolbar.insertAdjacentElement('afterend', panel);
+
+    // Disable manual fields when AE is on
+    function reflectAE(){
+      const on = !!ui.ae.checked;
+      ui.et.disabled = on;
+      ui.ag.disabled = on;
+      ui.dg.disabled = on;
+    }
+    ui.reflectAE = reflectAE;
+
+    // Debounced POST sender
+    let timer = null;
+    function send(partial){
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try{
+          await fetch('/preview_controls', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(partial)
+          });
+        } catch(e){}
+      }, 120);
+    }
+
+    // Wire control events
+    ui.ae.addEventListener('change', ()=> { reflectAE(); send({ AeEnable: ui.ae.checked }); });
+    ui.et.addEventListener('input',  ()=> send({ ExposureTime: Number(ui.et.value) }));
+    ui.ag.addEventListener('input',  ()=> send({ AnalogueGain: Number(ui.ag.value) }));
+    ui.dg.addEventListener('input',  ()=> send({ DigitalGain:  Number(ui.dg.value) }));
+
+    ui.bri.addEventListener('input', ()=> send({ Brightness: Number(ui.bri.value) }));
+    ui.con.addEventListener('input', ()=> send({ Contrast:   Number(ui.con.value) }));
+    ui.sat.addEventListener('input', ()=> send({ Saturation: Number(ui.sat.value) }));
+    ui.sha.addEventListener('input', ()=> send({ Sharpness:  Number(ui.sha.value) }));
+
+    // Reset handler
+    resetBtn.addEventListener('click', async () => {
+      try{
+        await fetch('/preview_controls', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ reset: true })
+        });
+        await loadPreviewControls(); // refresh UI from server defaults
+      } catch(e){}
+    });
+
+    // 📸 Capture image handler
+    capBtn.addEventListener('click', async () => {
+      capBtn.disabled = true;
+      const prevText = capBtn.textContent;
+      capBtn.textContent = 'Capturing…';
+      capMsg.textContent = '';
+      try{
+        const r = await fetch('/capture_image', { method: 'POST' });
+        const data = await r.json();
+        if (!r.ok || !data.ok) {
+          capMsg.textContent = 'Failed to capture';
+          capMsg.style.color = '#f85149'; // red-ish
+        } else {
+          const tail = (data.path || '').split(/[\\/]/).pop() || 'image';
+          capMsg.textContent = 'Saved: ' + tail;
+
+          // Refresh Files popout if open
+          const filesPop = document.getElementById('files-pop');
+          if (filesPop && filesPop.classList.contains('open')) {
+            const evt = new Event('click');
+            document.getElementById('files-toggle')?.dispatchEvent(evt);
+            document.getElementById('files-toggle')?.dispatchEvent(evt);
+          }
+        }
+      } catch(e){
+        capMsg.textContent = 'Error capturing';
+        capMsg.style.color = '#f85149';
+      } finally {
+        capBtn.textContent = prevText;
+        capBtn.disabled = false;
+        setTimeout(() => { capMsg.textContent = ''; capMsg.style.color = ''; }, 2000);
+      }
+    });
+  }
+
+  async function loadPreviewControls(){
+    try{
+      const res = await fetch('/preview_controls', { cache: 'no-store' });
+      const data = await res.json();
+      if (!data || !data.ok) return;
+      const c = data.controls || {};
+
+      // Fill UI from server values
+      if (typeof c.AeEnable === 'boolean') ui.ae.checked = c.AeEnable;
+
+      if (c.ExposureTime != null) ui.et.value = String(c.ExposureTime);
+      if (c.AnalogueGain  != null) ui.ag.value = String(c.AnalogueGain);
+      if (c.DigitalGain   != null) ui.dg.value = String(c.DigitalGain);
+
+      ui.bri.value = (c.Brightness ?? 0.0);
+      ui.con.value = Math.min(2, (c.Contrast ?? 1.0));
+      ui.sat.value = Math.min(2, (c.Saturation ?? 1.0));
+      ui.sha.value = Math.min(2, (c.Sharpness ?? 1.0));
+
+      // Update inline labels
+      ui.et.dispatchEvent(new Event('input'));
+      ui.ag.dispatchEvent(new Event('input'));
+      ui.dg.dispatchEvent(new Event('input'));
+      ui.bri.dispatchEvent(new Event('input'));
+      ui.con.dispatchEvent(new Event('input'));
+      ui.sat.dispatchEvent(new Event('input'));
+      ui.sha.dispatchEvent(new Event('input'));
+
+      ui.reflectAE && ui.reflectAE();
+
+      if (note){
+        if (data.dev) note.textContent = 'Live MJPEG stream (DEV: camera controls simulated).';
+        else note.textContent = 'Live MJPEG stream — changes below apply immediately.';
+      }
+    } catch(e){}
+  }
+
   async function startPreview() {
     const dev = await resolveMode();
+    ensureControlsUI();
+
     if (dev) {
-      // DEV: show canvas placeholder, hide img
       if (feed) feed.style.display = 'none';
       if (cvs)  cvs.style.display  = '';
-      if (note) note.textContent   = 'Running in DEV mode — preview is a placeholder.';
       startDevAnim();
     } else {
-      // PROD: show MJPEG <img>, hide canvas
       if (cvs) { cvs.style.display = 'none'; if (devAnim) { cancelAnimationFrame(devAnim); devAnim = null; } }
       if (feed) {
         feed.style.display = '';
-        feed.src = '/preview.mjpg';  // starts stream
+        feed.src = '/preview.mjpg';
       }
-      if (note) note.textContent = 'Live MJPEG stream from the camera.';
     }
+    await loadPreviewControls();
   }
 
   // events
@@ -701,9 +944,7 @@ function setupWindowChips() {
 
   document.addEventListener('click', (e) => {
     if (!pop) return;
-    if (!pop.contains(e.target) && e.target !== btn) {
-      closePop();
-    }
+    if (!pop.contains(e.target) && e.target !== btn) closePop();
   });
 })();
 

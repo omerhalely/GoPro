@@ -66,6 +66,21 @@ CURRENT_IMAGE_RES = list(IMAGE_RES_DEFAULT)  # [w, h]
 CURRENT_VIDEO_RES = list(VIDEO_RES_DEFAULT)  # [w, h]
 CURRENT_VIDEO_FPS = VIDEO_FPS_DEFAULT
 
+# ===== Live preview controls (defaults) =====
+DEFAULT_PREVIEW_CTRLS = {
+    "AeEnable": True,        # auto exposure
+    "ExposureTime": None,    # μs (manual only if AeEnable=False)
+    "AnalogueGain": None,    # 1.0..16.0 (manual only if AeEnable=False)
+    "DigitalGain": None,     # 1.0..16.0 (manual only if AeEnable=False)
+    "Brightness": 0.0,       # -1.0..+1.0
+    "Contrast": 1.0,         # 0..32
+    "Saturation": 1.0,       # 0..32
+    "Sharpness": 1.0,        # 0..16
+}
+
+_preview_ctrls = dict(DEFAULT_PREVIEW_CTRLS)  # current live controls
+
+
 # -----------------------------------------------------------------------------
 # Optional imports (Picamera2 + user capture modules)
 # -----------------------------------------------------------------------------
@@ -120,6 +135,109 @@ _preview_fps = 25
 # -----------------------------------------------------------------------------
 # Helpers (parsing/formatting)
 # -----------------------------------------------------------------------------
+
+# ===== Live preview controls (defaults) =====
+_preview_ctrls = {
+    "AeEnable": True,        # auto exposure
+    "ExposureTime": None,    # μs (manual only if AeEnable=False)
+    "AnalogueGain": None,    # 1.0..16.0 (manual only if AeEnable=False)
+    "DigitalGain": None,     # 1.0..16.0 (manual only if AeEnable=False)
+    "Brightness": 0.0,       # -1.0..+1.0
+    "Contrast": 1.0,         # 0..32 (1.0 = default look)
+    "Saturation": 1.0,       # 0..32 (1.0 = default look)
+    "Sharpness": 1.0,        # 0..16 (1.0 = default look)
+}
+
+def _effective_controls_dict(controls: dict) -> dict:
+    """Build a dict for Picamera2.set_controls, skipping None values."""
+    out = {}
+    for k in ("AeEnable", "ExposureTime", "AnalogueGain", "DigitalGain",
+              "Brightness", "Contrast", "Saturation", "Sharpness"):
+        v = controls.get(k, None)
+        if v is None and k in ("ExposureTime", "AnalogueGain", "DigitalGain"):
+            continue  # don't send Nones for manual-only items
+        out[k] = v
+    return out
+
+def _sanitize_and_merge_preview_ctrls(update: dict) -> dict:
+    """
+    Merge user-provided values into _preview_ctrls with clamping.
+    Auto-disables AE if manual exposure/gains are changed (unless AeEnable is explicitly included).
+    """
+    def to_bool(v):
+        if isinstance(v, bool): return v
+        s = str(v).lower()
+        return s in ("1", "true", "yes", "on")
+
+    def to_int(v):
+        try: return int(v)
+        except: return None
+
+    def to_float(v):
+        try: return float(v)
+        except: return None
+
+    global _preview_ctrls
+    merged = dict(_preview_ctrls)
+
+    if "AeEnable" in update:
+        merged["AeEnable"] = to_bool(update["AeEnable"])
+
+    if "ExposureTime" in update:
+        et = to_int(update["ExposureTime"])
+        if et is not None:
+            merged["ExposureTime"] = max(20, min(et, 2_000_000))  # 20µs..2s
+
+    if "AnalogueGain" in update:
+        ag = to_float(update["AnalogueGain"])
+        if ag is not None:
+            merged["AnalogueGain"] = max(1.0, min(ag, 16.0))
+
+    if "DigitalGain" in update:
+        dg = to_float(update["DigitalGain"])
+        if dg is not None:
+            merged["DigitalGain"] = max(1.0, min(dg, 16.0))
+
+    if "Brightness" in update:
+        b = to_float(update["Brightness"])
+        if b is not None:
+            merged["Brightness"] = max(-1.0, min(b, 1.0))
+
+    if "Contrast" in update:
+        c = to_float(update["Contrast"])
+        if c is not None:
+            merged["Contrast"] = max(0.0, min(c, 32.0))
+
+    if "Saturation" in update:
+        s = to_float(update["Saturation"])
+        if s is not None:
+            merged["Saturation"] = max(0.0, min(s, 32.0))
+
+    if "Sharpness" in update:
+        sh = to_float(update["Sharpness"])
+        if sh is not None:
+            merged["Sharpness"] = max(0.0, min(sh, 16.0))
+
+    # If user tweaked manual exposure/gain but didn't specify AeEnable, turn AE off.
+    if any(k in update for k in ("ExposureTime", "AnalogueGain", "DigitalGain")) \
+       and "AeEnable" not in update and merged["AeEnable"]:
+        merged["AeEnable"] = False
+
+    _preview_ctrls = merged
+    return merged
+
+def _apply_preview_controls_if_running() -> bool:
+    """Apply _preview_ctrls to the running preview camera, if present."""
+    global _picam2
+    with _picam_lock:
+        if _picam2 is None:
+            return False
+        try:
+            _picam2.set_controls(_effective_controls_dict(_preview_ctrls))
+            return True
+        except Exception as e:
+            print("[preview_controls] apply failed:", e)
+            return False
 
 def _res_to_str(res: Tuple[int, int] | list[int]) -> str:
     """Convert (w,h) to 'WxH' string."""
@@ -386,14 +504,10 @@ def _ensure_picam2():
     with _picam_lock:
         # Always reset to avoid conflicts with recording instance
         if _picam2 is not None:
-            try:
-                _picam2.stop()
-            except Exception:
-                pass
-            try:
-                _picam2.close()
-            except Exception:
-                pass
+            try: _picam2.stop()
+            except Exception: pass
+            try: _picam2.close()
+            except Exception: pass
             _picam2 = None
 
         if Picamera2 is None:
@@ -403,21 +517,28 @@ def _ensure_picam2():
         width = int(CURRENT_VIDEO_RES[0])
         height = int(CURRENT_VIDEO_RES[1])
 
-        # Use BGR888 so OpenCV jpeg encoding doesn't swap colors
+        # Start with current preview controls (skip Nones for manual fields)
+        ctrl_init = _effective_controls_dict(_preview_ctrls)
+
         config = picam2.create_preview_configuration(
             main={"size": (width, height), "format": "BGR888"},
             controls={
                 "FrameRate": int(CURRENT_VIDEO_FPS),
-                "AeEnable": True,
-                "Sharpness": 1.0,
-                "Contrast": 1.05,
-                "Saturation": 1.05,
+                **ctrl_init
             }
         )
         picam2.configure(config)
         picam2.start()
+
+        # Apply again post-start (some controls behave better this way)
+        try:
+            picam2.set_controls(ctrl_init)
+        except Exception:
+            pass
+
         _picam2 = picam2
         return _picam2
+
 
 
 # -----------------------------------------------------------------------------
@@ -552,6 +673,52 @@ def preview_mjpg():
                 continue
 
     return Response(gen(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+@app.route("/preview_controls", methods=["GET", "POST"])
+def preview_controls():
+    """
+    Get or set live preview controls.
+
+    GET  -> {"ok":true, "controls":{...}, "applied": bool, "dev": bool}
+    POST -> accepts any subset of:
+        AeEnable (bool), ExposureTime (int μs), AnalogueGain (float),
+        DigitalGain (float), Brightness (float), Contrast (float),
+        Saturation (float), Sharpness (float)
+        Special: {"reset": true} restores DEFAULT_PREVIEW_CTRLS
+    """
+    global _preview_ctrls
+
+    if request.method == "GET":
+        return jsonify({
+            "ok": True,
+            "controls": _preview_ctrls,
+            "applied": _picam2 is not None,
+            "dev": DEVELOPMENT_MODE
+        })
+
+    body = request.get_json(force=True, silent=True) or {}
+
+    # Reset to defaults
+    if body.get("reset"):
+        _preview_ctrls = dict(DEFAULT_PREVIEW_CTRLS)
+        applied = _apply_preview_controls_if_running()
+        return jsonify({
+            "ok": True,
+            "controls": _preview_ctrls,
+            "applied": applied,
+            "dev": DEVELOPMENT_MODE,
+            "reset": True
+        })
+
+    merged = _sanitize_and_merge_preview_ctrls(body)
+    applied = _apply_preview_controls_if_running()
+    return jsonify({
+        "ok": True,
+        "controls": merged,
+        "applied": applied,
+        "dev": DEVELOPMENT_MODE
+    })
+
 
 
 # -----------------------------------------------------------------------------
