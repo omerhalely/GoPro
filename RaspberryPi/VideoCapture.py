@@ -1,11 +1,8 @@
 from picamera2 import Picamera2
+from picamera2.outputs import FfmpegOutput
+from picamera2.encoders import H264Encoder
 import RPi.GPIO as GPIO
-import cv2
-import psutil
-import threading
-import queue
-import time
-import os
+import cv2, psutil, threading, queue, time, os
 from datetime import datetime
 
 
@@ -40,64 +37,70 @@ def writer(output_dir, output_size, fps):
     
     out.release()
 
+def get_path(output_dir: str)-> str:
+    videos_path = os.path.join(output_dir, "videos")
+    if not os.path.exists(videos_path):
+        os.mkdir(videos_path)
+    current_date_str = datetime.now().strftime("%Y-%m-%d")
+    current_date_video_path = os.path.join(videos_path, current_date_str)
+    if not os.path.exists(current_date_video_path):
+        os.mkdir(current_date_video_path)
+    current_time = datetime.now().strftime("%H-%M-%S")
+    output_path = os.path.join(current_date_video_path, f"{current_time}.mp4")
+    return output_path
 
-def video_capture(stop_evt: threading.Event, output_dir: str):
+def video_capture(
+        output_dir: str,
+        stop_evt: threading.Event,
+        width: int,
+        height: int,
+        fps: int,
+        bitrate: int,
+        exposure_us: int | None = None,
+        analogue_gain: float | None = None,
+        inline_headers: bool = True
+):
+    output_path = get_path(output_dir)
     picam2 = Picamera2()
     
     size = (int(640 // 2), int(480 // 2))
     fps = 25
     config = picam2.create_preview_configuration(
         main={
-            "size": size,
-            "format": "RGB888"
+            "size": (width, height),
+            "format": "YUV420"
         },
         controls={
             "FrameRate": fps
         }
     )
-
-    picam2.set_controls({
-        "AeEnable": True,
-        "ExposureTime": 8000,
-        "AnalogueGain": 8.0
-    })
-
-
     picam2.configure(config)
-    picam2.start()
 
-    t = threading.Thread(target=writer, args=(output_dir, size, fps))
-    t.start()
-    prev_available, total = get_available_RAM()
-    while not stop_evt.is_set():
-        start = time.time()
-        frame = picam2.capture_array()
-        
+    controls = {}
+    if exposure_us is not None:
+        controls["AeEnable"] = False,
+        controls["ExposureTime"] = exposure_us
+    if analogue_gain is not None:
+        controls["AnalogueGain"] = analogue_gain
+    if controls:
+        picam2.set_controls(controls)
+
+    encoder = H264Encoder(bitrate=bitrate, repeat=inline_headers)
+    output = FfmpegOutput(output_path)
+
+    try:
+        picam2.start_recording(encoder, output)
+
+        while not stop_evt.wait(timeout=0.25):
+            pass
+
+    finally:
         try:
-            frame_queue.put_nowait(frame)
-            current_available, total = get_available_RAM()
-            delta_available = prev_available - current_available
-            prev_available = current_available
-            
-            if current_available < 100:
-                break
-            
-        except queue.Full:
-            print("Dropped frame (queue full)")
-            
-        cv2.imshow("Camera", frame)
-        if cv2.waitKey(1) == ord("q"):
-            break
-        if time.time() - start < 1 / fps:
-            time.sleep(1 / fps - (time.time() - start))
-        end = time.time()
-        current_fps = 1 / (end - start)
+            picam2.stop_recording()
+        except Exception:
+            pass
+        picam2.close()
 
-    frame_queue.put(None)
-    t.join()
-    cv2.destroyAllWindows()
-    picam2.stop()
-    picam2.close()
 
 if __name__ == "__main__":
     GPIO.setmode(GPIO.BCM)

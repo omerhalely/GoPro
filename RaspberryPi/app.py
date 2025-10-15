@@ -88,7 +88,13 @@ def _run_capture_thread():
                 _picam2.stop()
                 _picam2.close()
                 _picam2 = None
-            video_capture(_stop_evt, output_dir=save_dir)  # plug in on the Pi
+            video_capture(
+                output_dir=save_dir,
+                stop_evt=_stop_evt,
+                width=CURRENT_VIDEO_RES[0],
+                height=CURRENT_VIDEO_RES[1],
+                fps=CURRENT_VIDEO_FPS,
+            )  # plug in on the Pi
 
     finally:
         # mark not running even on error or stop
