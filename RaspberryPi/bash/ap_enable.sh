@@ -1,4 +1,3 @@
-cat > ~/ap_enable.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -31,7 +30,5 @@ echo "[*] Starting DHCP (dnsmasq) and Access Point (hostapd)..."
 sudo systemctl start dnsmasq
 sudo systemctl start hostapd
 
-echo "[✓] AP enabled. SSID: 'Pi-Server'  Password: 'MyStrongPass123'"
-echo "    The Pi is at http://192.168.50.1  (Your Flask should bind to 0.0.0.0:5000)"
-EOF
-chmod +x ~/ap_enable.sh
+echo "[✓] AP enabled. SSID: 'PiCam'  Password: '0544978424'"
+echo "    The Pi is at http://192.168.50.1"

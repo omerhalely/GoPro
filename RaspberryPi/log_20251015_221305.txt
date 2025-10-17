@@ -1,2 +1,0 @@
-2025-10-15 22:13:23 [INFO] capture:start save_dir='./outputs' res=[640, 480] fps=25
-2025-10-15 22:13:29 [INFO] capture:stop signaled
