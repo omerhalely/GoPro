@@ -2,7 +2,7 @@ from picamera2 import Picamera2
 from picamera2.outputs import FfmpegOutput
 from picamera2.encoders import H264Encoder
 import RPi.GPIO as GPIO
-import cv2, psutil, threading, queue, time, os
+import cv2, psutil, threading, queue, os
 from datetime import datetime
 from typing import Union
 
