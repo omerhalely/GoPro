@@ -2,8 +2,6 @@ import pykitti
 import numpy as np
 import pymap3d as pm
 
-from Classes.Trajectory import Trajectory
-
 
 def unpack_params(dataset):
     lons = [i.packet.lon for i in dataset.oxts]

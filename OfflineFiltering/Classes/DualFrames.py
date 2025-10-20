@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from Classes.Frame import Frame
+from OfflineFiltering.Classes.Frame import Frame
 
 
 class DualFrames:

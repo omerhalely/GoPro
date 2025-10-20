@@ -5,10 +5,10 @@ import os
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from utils import build_reference_trajectory
-from Classes.DualFrames import DualFrames
-from Classes.Trajectory import Trajectory
-from Classes.KalmanFilter import KalmanFilter
+from OfflineFiltering.utils import build_reference_trajectory
+from OfflineFiltering.Classes.DualFrames import DualFrames
+from OfflineFiltering.Classes.Trajectory import Trajectory
+from OfflineFiltering.Classes.KalmanFilter import KalmanFilter
 
 
 def R_t_estimation(prev_frames : DualFrames, current_frames : DualFrames, bf : cv2.BFMatcher, t=0.75):

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from Classes.KalmanFilter import KalmanFilter
+from OfflineFiltering.Classes.KalmanFilter import KalmanFilter
 
 
 class Trajectory:
