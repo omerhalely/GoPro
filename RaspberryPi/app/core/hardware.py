@@ -61,7 +61,7 @@ def _read_cpu_util_percent(config: Config, state:AppState) -> Optional[float]:
         non_idle = user + nice + system + irq + softirq + steal
         total = idle_all + non_idle
         if state._prev_total is None:
-            _prev_total, _prev_idle = total, idle_all
+            state._prev_total, state._prev_idle = total, idle_all
             return None
         totald = total - state._prev_total
         idled = idle_all - state._prev_idle
