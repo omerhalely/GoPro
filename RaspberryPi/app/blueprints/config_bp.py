@@ -16,8 +16,6 @@ def get_config():
     """
     config = current_app.config
     st = current_app.extensions["state"]
-    _log(config, st, "INFO", f"config:update save_dir='{st.CURRENT_SAVE_DIR}' img={_res_to_str(st.CURRENT_IMAGE_RES)} "
-                 f"vid={_res_to_str(st.CURRENT_VIDEO_RES)} fps={st.CURRENT_VIDEO_FPS}")
     return jsonify({
         "development_mode": config["DEVELOPMENT_MODE"],
         "save_dir_default": config["DEFAULT_SAVE_DIR"],
@@ -50,6 +48,7 @@ def post_config():
     Returns:
         JSON echoing the effective config after update.
     """
+    config = current_app.config
     st = current_app.extensions["state"]
     try:
         body = request.get_json(force=True, silent=True) or {}
@@ -85,6 +84,8 @@ def post_config():
     except Exception:
         pass
 
+    _log(config, st, "INFO", f"config:update save_dir='{st.CURRENT_SAVE_DIR}' img={_res_to_str(st.CURRENT_IMAGE_RES)} "
+                             f"vid={_res_to_str(st.CURRENT_VIDEO_RES)} fps={st.CURRENT_VIDEO_FPS}")
     return jsonify({
         "ok": True,
         "save_dir_current": st.CURRENT_SAVE_DIR,
