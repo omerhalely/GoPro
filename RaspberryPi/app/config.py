@@ -1,5 +1,20 @@
 import os, json
 
+try:
+    from .sensors.INA219 import ina219
+except Exception as e:
+    ina219 = None
+
+try:
+    import board
+except Exception as e:
+    board = None
+
+try:
+    import busio
+except Exception as e:
+    busio = None
+
 class AppConfig:
     configurations_path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), ".")), "configurations.json")
     with open(configurations_path, "r") as file:
@@ -40,3 +55,7 @@ class AppConfig:
         "Saturation": cfg["Saturation"],  # 0..32
         "Sharpness": cfg["Sharpness"]  # 0..16
     }
+
+    # INA219
+    I2C = busio.I2C(board.SCL, board.SDA)
+    INA = ina219(I2C)

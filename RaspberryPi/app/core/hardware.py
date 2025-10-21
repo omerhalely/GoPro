@@ -145,7 +145,11 @@ def _read_voltage_current(config: Config) -> Tuple[Optional[float], Optional[flo
         return amps, volts, volts * amps
     try:
         # TODO: read from e.g., INA219 if wired
-        return None, None, None
+        ina219 = config["INA"]
+        power = ina219.get_power()
+        voltage = ina219.get_voltage()
+        current = ina219.get_current()
+        return current, voltage, power
     except Exception:
         return None, None, None
 
