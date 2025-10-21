@@ -2,9 +2,10 @@ import os
 import datetime as dt
 from .state import AppState
 from flask.config import Config
+from typing import Optional
 
 
-def _log_rotate_if_needed(config: Config,st: AppState, now: dt.datetime | None = None):
+def _log_rotate_if_needed(config: Config,st: AppState, now: Optional[dt.datetime] = None):
     """Rotate (start a new file) if the reset interval has elapsed."""
     now = now or dt.datetime.now()
     elapsed = (now - st._log_started).total_seconds() / 3600.0
