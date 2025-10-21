@@ -1,7 +1,6 @@
 from picamera2 import Picamera2
 from picamera2.outputs import FfmpegOutput
 from picamera2.encoders import H264Encoder
-import RPi.GPIO as GPIO
 import cv2, psutil, threading, queue, os
 from datetime import datetime
 from typing import Union
@@ -57,13 +56,15 @@ def video_capture(
         height: int,
         fps: int,
         bitrate: int,
-        exposure_us: Union[int, None] = None,
-        analogue_gain: Union[float, None] = None,
+        controls: Union[dict, None],
         inline_headers: bool = True
 ):
-    print(f"Capturing Video | FPS : {fps} | Height : {height} | Width : {width} |")
     output_path = get_path(output_dir)
-    picam2 = Picamera2()
+    picam2 = None
+    try:
+        picam2 = Picamera2()
+    except Exception:
+        pass
     
     config = picam2.create_preview_configuration(
         main={
@@ -76,18 +77,7 @@ def video_capture(
     )
     picam2.configure(config)
 
-    controls = {
-        "AeEnable": True,
-        "Sharpness": 1.0,
-        "Contrast": 1.05,
-        "Saturation": 1.05,
-    }
-    if exposure_us is not None:
-        controls["AeEnable"] = False,
-        controls["ExposureTime"] = exposure_us
-    if analogue_gain is not None:
-        controls["AnalogueGain"] = analogue_gain
-    if controls:
+    if controls is not None:
         picam2.set_controls(controls)
 
     encoder = H264Encoder(bitrate=bitrate, repeat=inline_headers)
@@ -104,12 +94,5 @@ def video_capture(
             picam2.stop_recording()
         except Exception:
             pass
-        picam2.close()
-
-
-if __name__ == "__main__":
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setup(18, GPIO.OUT)    
-    GPIO.output(18, GPIO.LOW)
-    
-    video_capture(18)
+        if picam2 is not None:
+            picam2.close()

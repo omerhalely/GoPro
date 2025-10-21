@@ -131,7 +131,7 @@ h2{ font-size:18px; display:flex; align-items:center; justify-content:space-betw
 }
 .shell-out{
   flex:1; margin:0; padding:14px 16px; overflow:auto; white-space:pre-wrap; word-break:break-word;
-  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace; font-size: 12px;
 }
 .shell-status{ padding:8px 16px; font-size:12px; color:var(--muted); border-top:1px solid var(--border); }
 
@@ -310,6 +310,7 @@ input:checked + .slider:before{ transform:translateX(18px); }
 .log-body{
   margin:0; padding:12px 14px; overflow:auto; white-space:pre-wrap; word-break:break-word;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
   background: #0c0f14;
   border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;
   max-height: 60vh;

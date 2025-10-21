@@ -66,7 +66,6 @@ def _run_capture_thread(app) -> None:
             else:
                 bitrate = 3_000_000  # default for 640x480
 
-            # Call user module (hardware encode to MP4 recommended)
             if config["DEVELOPMENT_MODE"]:
                 _log(config, state, "INFO", "Video capture is not available in DEVELOPMENT MODE")
                 return
@@ -75,14 +74,20 @@ def _run_capture_thread(app) -> None:
                 _log(config, state, "ERROR", "[capture][error] VideoCapture.video_capture not available")
                 return
 
-            video_capture(
-                output_dir=save_dir,
-                stop_evt=state._stop_evt,
-                width=w,
-                height=h,
-                fps=int(state.CURRENT_VIDEO_FPS),
-                bitrate=int(bitrate),
-            )
+            _log(config, state, "INFO", f"Capturing Video | FPS : {state.CURRENT_VIDEO_FPS} | "
+                                        f"Height : {h} | Width : {w} |")
+            try:
+                video_capture(
+                    output_dir=save_dir,
+                    stop_evt=state._stop_evt,
+                    width=w,
+                    height=h,
+                    fps=int(state.CURRENT_VIDEO_FPS),
+                    bitrate=int(bitrate),
+                    controls=state._preview_ctrls
+                )
+            except Exception as e:
+                _log(config, state, "ERROR", f"[capture][error] VideoCapture.video_capture Failed: {e}")
     finally:
         # Mark as not running even on error or stop
         with state._state_lock:
@@ -164,10 +169,16 @@ def capture_image_endpoint():
         _log(config, st, "ERROR", f"image:capture failed: {e}")
         return jsonify({"ok": False, "error": f"Cannot create directory: {e}"}), 500
 
-    # Call real capture if available
+    # Call real image_capture()
     try:
         if image_capture is not None and not config["DEVELOPMENT_MODE"]:
-            path = image_capture(save_dir)
+            w, h = int(st.CURRENT_IMAGE_RES[0]), int(st.CURRENT_IMAGE_RES[1])
+            path = image_capture(
+                output_dir=save_dir,
+                width=w,
+                height=h,
+                controls=st._preview_ctrls
+            )
             if not path:
                 return jsonify({"ok": False, "error": "capture_image() returned no path"}), 500
             _log(config, st, "INFO", f"image:capture path='{path}'")

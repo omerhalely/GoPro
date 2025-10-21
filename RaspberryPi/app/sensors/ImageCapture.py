@@ -1,9 +1,10 @@
 import os
 from datetime import datetime
 from picamera2 import Picamera2
+from typing import Union
 
 
-def image_capture(output_dir: str) -> str:
+def get_path(output_dir):
     images_path = os.path.join(output_dir, "images")
     if not os.path.exists(images_path):
         os.mkdir(images_path)
@@ -13,4 +14,36 @@ def image_capture(output_dir: str) -> str:
         os.mkdir(current_date_image_path)
     current_time = datetime.now().strftime("%H-%M-%S")
     output_path = os.path.join(current_date_image_path, f"{current_time}.avi")
+    return output_path
+
+
+def image_capture(
+        output_dir: str,
+        width: int,
+        height: int,
+        controls: Union[dict, None]
+) -> str:
+    output_path = get_path(output_dir)
+    picam2 = None
+    try:
+        picam2 = Picamera2()
+    except Exception:
+        pass
+
+    config = picam2.create_preview_configuration(
+        main={
+            "size": (width, height),
+            "format": "YUV420"
+        },
+    )
+    picam2.configure(config)
+
+    if controls is not None:
+        picam2.set_controls(controls)
+
+    try:
+        picam2.capture(output_path)
+    finally:
+        if picam2 is not None:
+            picam2.close()
     return output_path

@@ -83,7 +83,6 @@ def _sanitize_and_merge_preview_ctrls(state, update: dict) -> dict:
         try: return float(v)
         except: return None
 
-    global _preview_ctrls
     merged = dict(state._preview_ctrls)
 
     if "AeEnable" in update:
