@@ -25,12 +25,12 @@ def metrics():
     ram_used = _read_ram_percent_used(config)
     disk_free = _read_disk_free_percent(config)
     cpu_mhz = _read_cpu_freq_mhz(config)
-    amps, volts = _read_voltage_current(config)
+    amps, volts, power = _read_voltage_current(config)
 
     def rnd(x, n=2): return None if x is None else round(x, n)
     return jsonify({
         "ts": ts,
-        "sensors": {"current_a": rnd(amps, 3), "voltage_v": rnd(volts, 3)},
+        "sensors": {"current_a": rnd(amps, 3), "voltage_v": rnd(volts, 3), "power_w": rnd(power, 3)},
         "cpu": {"temp_c": rnd(cpu_temp, 1), "util_pct": rnd(cpu_util, 1), "freq_mhz": rnd(cpu_mhz, 0)},
         "gpu": {"temp_c": rnd(gpu_temp, 1)},
         "ram": {"used_pct": rnd(ram_used, 1)},

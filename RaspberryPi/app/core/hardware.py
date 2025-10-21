@@ -137,12 +137,12 @@ def _set_led(config: Config, state: AppState, on: bool) -> None:
         pass
 
 
-def _read_voltage_current(config: Config) -> Tuple[Optional[float], Optional[float]]:
+def _read_voltage_current(config: Config) -> Tuple[Optional[float], Optional[float], Optional[float]]:
     """Return (current_A, voltage_V) from a sensor if present; DEV simulates."""
     if config["DEVELOPMENT_MODE"]:
         volts = round(_randf(4.80, 5.20), 3)
         amps = round(_randf(0.10, 2.50), 3)
-        return amps, volts
+        return amps, volts, volts * amps
     try:
         # TODO: read from e.g., INA219/INA260 if wired
         return None, None
@@ -168,7 +168,7 @@ def _ensure_picam2(state: AppState):
 
         if Picamera2 is None:
             raise Exception("Picamera2 is None")
-        
+
         picam2 = Picamera2()
         width = int(state.CURRENT_VIDEO_RES[0])
         height = int(state.CURRENT_VIDEO_RES[1])

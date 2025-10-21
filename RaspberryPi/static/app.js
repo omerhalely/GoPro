@@ -155,7 +155,7 @@ async function captureStill(){
 }
 
 // -------- Charts buffers --------
-const buf = { cur:[], vol:[], cpu:[], ram:[], mhz:[] };
+const buf = { cur:[], vol:[], pow:[], cpu:[], ram:[], mhz:[] };
 
 function prune(a) {
   const cutoff = performance.now() - WINDOW_MS();
@@ -218,6 +218,7 @@ function drawSparkline(canvas, series, {min=null, max=null} = {}) {
 function redrawAllSparklines() {
   drawSparkline(document.getElementById('cur'), buf.cur, {min:0});
   drawSparkline(document.getElementById('vol'), buf.vol);
+  drawSparkline(document.getElementById('pow'), buf.vol);
   drawSparkline(document.getElementById('cpu'), buf.cpu, {min:0, max:100});
   drawSparkline(document.getElementById('ram'), buf.ram, {min:0, max:100});
   drawSparkline(document.getElementById('mhz'), buf.mhz);
@@ -235,18 +236,21 @@ async function tick(){
 
   push('cur', m.sensors.current_a, now);
   push('vol', m.sensors.voltage_v, now);
+  push('pow', m.sensors.power_w,   now);
   push('cpu', m.cpu.util_pct,      now);
   push('ram', m.ram.used_pct,      now);
   push('mhz', m.cpu.freq_mhz,      now);
 
   document.getElementById('cur_now').textContent = m.sensors.current_a ?? '—';
   document.getElementById('vol_now').textContent = m.sensors.voltage_v ?? '—';
+  document.getElementById('pow_now').textContent = m.sensors.power_w ?? '—';
   document.getElementById('cpu_now').textContent = m.cpu.util_pct ?? '—';
   document.getElementById('ram_now').textContent = m.ram.used_pct ?? '—';
   document.getElementById('mhz_now').textContent = m.cpu.freq_mhz ?? '—';
 
   drawSparkline(document.getElementById('cur'), buf.cur, {min:0});
   drawSparkline(document.getElementById('vol'), buf.vol);
+  drawSparkline(document.getElementById('pow'), buf.pow);
   drawSparkline(document.getElementById('cpu'), buf.cpu, {min:0, max:100});
   drawSparkline(document.getElementById('ram'), buf.ram, {min:0, max:100});
   drawSparkline(document.getElementById('mhz'), buf.mhz);
@@ -263,6 +267,7 @@ function setupWindowChips() {
     Object.values(buf).forEach(prune);
     drawSparkline(document.getElementById('cur'), buf.cur, {min:0});
     drawSparkline(document.getElementById('vol'), buf.vol);
+    drawSparkline(document.getElementById('pow'), buf.pow);
     drawSparkline(document.getElementById('cpu'), buf.cpu, {min:0, max:100});
     drawSparkline(document.getElementById('ram'), buf.ram, {min:0, max:100});
     drawSparkline(document.getElementById('mhz'), buf.mhz);

@@ -16,7 +16,7 @@ def get_log():
     config = current_app.config
     state = current_app.extensions["state"]
     try:
-        path = config["LOG_DIR"]
+        path = state._log_path
         try:
             st = os.stat(path)
             size = st.st_size
