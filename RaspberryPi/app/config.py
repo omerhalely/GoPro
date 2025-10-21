@@ -40,22 +40,3 @@ class AppConfig:
         "Saturation": cfg["Saturation"],  # 0..32
         "Sharpness": cfg["Sharpness"]  # 0..16
     }
-
-    try:
-        from picamera2 import Picamera2
-    except Exception as e:
-        if not DEVELOPMENT_MODE:
-            print("[Picamera2 import error]", e)
-        Picamera2 = None  # type: ignore
-    try:
-        from .sensors.VideoCapture import video_capture  # def video_capture(output_dir,...)
-    except Exception as e:
-        if not DEVELOPMENT_MODE:
-            print("[VideoCapture import error]", e)
-        video_capture = None
-    try:
-        from .sensors.ImageCapture import image_capture  # def image_capture(save_dir) -> str
-    except Exception as e:
-        if not DEVELOPMENT_MODE:
-            print("[ImageCapture import error]", e)
-        image_capture = None

@@ -166,6 +166,9 @@ def _ensure_picam2(state: AppState):
             except Exception: pass
             _picam2 = None
 
+        if Picamera2 is None:
+            raise Exception("Picamera2 is None")
+        
         picam2 = Picamera2()
         width = int(state.CURRENT_VIDEO_RES[0])
         height = int(state.CURRENT_VIDEO_RES[1])
@@ -174,7 +177,7 @@ def _ensure_picam2(state: AppState):
         ctrl_init = _effective_controls_dict(state._preview_ctrls)
 
         config = picam2.create_preview_configuration(
-            main={"size": (width, height), "format": "BGR888"},
+            main={"size": (width, height), "format": "RGB888"},
             controls={
                 "FrameRate": int(state.CURRENT_VIDEO_FPS),
                 **ctrl_init
@@ -190,4 +193,4 @@ def _ensure_picam2(state: AppState):
             pass
 
         state._picam2 = picam2
-        return _picam2
+        return state._picam2

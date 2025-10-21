@@ -2,6 +2,7 @@ from __future__ import annotations
 from flask import Flask
 from .config import AppConfig
 from .core.state import AppState
+from .core.logger import _log
 
 # Blueprints
 from .blueprints.web_bp import bp as web_bp
@@ -24,6 +25,10 @@ def create_app() -> Flask:
     app.extensions = getattr(app, "extensions", {})
     app.extensions["state"] = AppState(app.config)
 
+    config = app.config
+    state = app.extensions["state"]
+    _log(config, state, "INFO", "Building Application")
+
     # Register blueprints
     app.register_blueprint(web_bp)
     app.register_blueprint(config_bp)
@@ -35,11 +40,5 @@ def create_app() -> Flask:
     app.register_blueprint(shell_bp)
     app.register_blueprint(log_bp)
 
-    # Example error logging hook (concise)
-    # @app.errorhandler(Exception)
-    # def _on_error(err):
-    #     app.extensions["applog"].error("unhandled_exception", {"err": repr(err)})
-    #     # You can re-raise or return a generic JSON here if you want
-    #     raise err
-
+    _log(config, state, "INFO", "Built Application Successfully")
     return app

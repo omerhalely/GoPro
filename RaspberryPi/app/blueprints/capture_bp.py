@@ -2,6 +2,16 @@ from flask import Blueprint, current_app, jsonify, request, Response
 from ..core.logger import _log
 import time, threading, os
 
+try:
+    from ..sensors.VideoCapture import video_capture
+except Exception as e:
+    video_capture = None
+
+try:
+    from ..sensors.ImageCapture import image_capture
+except Exception as e:
+    image_capture = None
+
 
 bp = Blueprint("capture", __name__)
 
@@ -57,11 +67,15 @@ def _run_capture_thread(app) -> None:
                 bitrate = 3_000_000  # default for 640x480
 
             # Call user module (hardware encode to MP4 recommended)
-            if config["video_capture"] is None:
+            if config["DEVELOPMENT_MODE"]:
+                _log(config, state, "INFO", "Video capture is not available in DEVELOPMENT MODE")
+                return
+
+            if video_capture is None:
                 _log(config, state, "ERROR", "[capture][error] VideoCapture.video_capture not available")
                 return
 
-            config["video_capture"](
+            video_capture(
                 output_dir=save_dir,
                 stop_evt=state._stop_evt,
                 width=w,
@@ -152,12 +166,17 @@ def capture_image_endpoint():
 
     # Call real capture if available
     try:
-        if config["image_capture"] is not None and not config["DEVELOPMENT_MODE"]:
-            path = config["image_capture"](save_dir)  # your function should return full path
+        if image_capture is not None and not config["DEVELOPMENT_MODE"]:
+            path = image_capture(save_dir)
             if not path:
                 return jsonify({"ok": False, "error": "capture_image() returned no path"}), 500
             _log(config, st, "INFO", f"image:capture path='{path}'")
             return jsonify({"ok": True, "path": path, "dev": False})
+
+        elif image_capture is None and not config["DEVELOPMENT_MODE"]:
+            _log(config, st, "ERROR", f"[capture][error] ImageCapture.image_capture not available")
+            return jsonify({"ok": True, "error": "capture_image() not available", "dev": False})
+
         else:
             # DEV fallback: return a predictable filename (not actually created here)
             ts = int(time.time())
@@ -165,6 +184,7 @@ def capture_image_endpoint():
             fpath = os.path.join(save_dir, fname)
             _log(config, st, "INFO", f"image:capture path='{fpath}'")
             return jsonify({"ok": True, "path": fpath, "dev": True})
+
     except Exception as e:
         _log(config, st, "ERROR", f"image:capture failed: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
