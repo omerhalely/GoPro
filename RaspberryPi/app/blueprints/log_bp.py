@@ -13,9 +13,10 @@ def get_log():
     Return tail of the current log file (read-only).
     JSON: { ok, path, started_ts, reset_hours, size, mtime, text }
     """
+    config = current_app.config
+    st = current_app.extensions["state"]
     try:
-        st = current_app.extensions["state"]
-        path = current_app.config["LOG_DIR"]
+        path = config["LOG_DIR"]
         try:
             st = os.stat(path)
             size = st.st_size
@@ -44,7 +45,7 @@ def get_log():
             "text": text
         })
     except Exception as e:
-        _log("ERROR", f"log:get failed: {e}")
+        _log(config, st, "ERROR", f"log:get failed: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -64,7 +65,7 @@ def log_config():
         hrs = int(body.get("reset_hours", st._log_reset_hours))
         hrs = max(1, min(hrs, 720))  # 1h .. 30d
         st._log_reset_hours = hrs
-        _log("INFO", f"log:reset_hours set to {hrs}")
+        _log(config, st, "INFO", f"log:reset_hours set to {hrs}")
         return jsonify({"ok": True, "reset_hours": st._log_reset_hours})
     except Exception as e:
         _log(config, st, "ERROR", f"log:config error: {e}")
