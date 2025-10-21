@@ -1,9 +1,9 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union, List
 import os
 from .logger import _log
 
 
-def _res_to_str(res: Tuple[int, int] | list[int]) -> str:
+def _res_to_str(res: Union[Tuple[int, int], List[int]]) -> str:
     """Convert (w,h) to 'WxH' string."""
     try:
         w, h = int(res[0]), int(res[1])
