@@ -144,10 +144,10 @@ def _read_voltage_current(config: Config) -> Tuple[Optional[float], Optional[flo
         amps = round(_randf(0.10, 2.50), 3)
         return amps, volts, volts * amps
     try:
-        # TODO: read from e.g., INA219/INA260 if wired
-        return None, None
+        # TODO: read from e.g., INA219 if wired
+        return None, None, None
     except Exception:
-        return None, None
+        return None, None, None
 
 
 def _ensure_picam2(state: AppState):
