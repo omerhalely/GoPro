@@ -5,6 +5,11 @@ from flask.config import Config
 from .state import AppState
 from .utils import _effective_controls_dict
 
+try:
+    from picamera2 import Picamera2
+except Exception as e:
+    Picamera2 = None
+
 
 def _randf(lo: float, hi: float) -> float:
     """Return a random float in [lo, hi] without importing random."""
