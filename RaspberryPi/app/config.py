@@ -57,5 +57,6 @@ class AppConfig:
     }
 
     # INA219
-    I2C = busio.I2C(board.SCL, board.SDA)
-    INA = ina219(I2C)
+    if not DEVELOPMENT_MODE:
+        I2C = busio.I2C(board.SCL, board.SDA)
+        INA = ina219(I2C)

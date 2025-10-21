@@ -146,7 +146,6 @@ def _read_voltage_current(config: Config) -> Tuple[Optional[float], Optional[flo
     try:
         ina219 = config["INA"]
         power = ina219.get_power()
-        print(power)
         voltage = ina219.get_voltage()
         current = ina219.get_current()
         return current, voltage, power
