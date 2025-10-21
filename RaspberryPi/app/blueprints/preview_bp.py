@@ -26,7 +26,7 @@ def preview_mjpg():
         return jsonify({"ok": False, "error": "Preview disabled in DEV"}), 503
 
     try:
-        cam = _ensure_picam2(st, config["Picamera2"])
+        cam = _ensure_picam2(st)
     except Exception as e:
         _log(config, st, "ERROR", f"image:capture failed: {e}")
         return jsonify({"ok": False, "error": f"camera init failed: {e}"}), 503

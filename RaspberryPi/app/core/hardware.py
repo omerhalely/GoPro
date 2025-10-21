@@ -145,7 +145,7 @@ def _read_voltage_current(config: Config) -> Tuple[Optional[float], Optional[flo
         return None, None
 
 
-def _ensure_picam2(state: AppState, Picamera2):
+def _ensure_picam2(state: AppState):
     """
     (Re)create a lightweight Picamera2 instance configured for preview streaming.
 
@@ -160,9 +160,6 @@ def _ensure_picam2(state: AppState, Picamera2):
             try: state._picam2.close()
             except Exception: pass
             _picam2 = None
-
-        if Picamera2 is None:
-            raise RuntimeError("Picamera2 is not available")
 
         picam2 = Picamera2()
         width = int(state.CURRENT_VIDEO_RES[0])

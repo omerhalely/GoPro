@@ -14,7 +14,7 @@ def get_log():
     JSON: { ok, path, started_ts, reset_hours, size, mtime, text }
     """
     config = current_app.config
-    st = current_app.extensions["state"]
+    state = current_app.extensions["state"]
     try:
         path = config["LOG_DIR"]
         try:
@@ -28,8 +28,8 @@ def get_log():
         text = ""
         if os.path.exists(path) and os.path.isfile(path):
             with open(path, "rb") as f:
-                if size > st._log_max_return_bytes:
-                    f.seek(-st._log_max_return_bytes, io.SEEK_END)
+                if size > state._log_max_return_bytes:
+                    f.seek(-state._log_max_return_bytes, io.SEEK_END)
                     text = f.read().decode("utf-8", errors="replace")
                     text = "[…truncated…]\n" + text
                 else:
@@ -38,14 +38,14 @@ def get_log():
         return jsonify({
             "ok": True,
             "path": path,
-            "started_ts": int(st._log_started.timestamp()),
-            "reset_hours": st._log_reset_hours,
+            "started_ts": int(state._log_started.timestamp()),
+            "reset_hours": state._log_reset_hours,
             "size": size,
             "mtime": mtime,
             "text": text
         })
     except Exception as e:
-        _log(config, st, "ERROR", f"log:get failed: {e}")
+        _log(config, state, "ERROR", f"log:get failed: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
