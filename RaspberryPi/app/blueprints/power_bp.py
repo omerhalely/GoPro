@@ -38,5 +38,5 @@ def power_action():
         subprocess.Popen(cmd)  # do not wait
         return jsonify({"ok": True, "dev": False, "action": action, "message": f"{action} command sent."})
     except Exception as e:
-        _log(config, st, "ERROR", f"image:capture failed: {e}")
+        _log(config, st, "ERROR", f"power():Failed to restart/turn off the raspberrypi: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500

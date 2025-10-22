@@ -57,7 +57,7 @@ def run_shell():
             )
         elapsed = time.time() - start
     except subprocess.TimeoutExpired as e:
-        _log(config, st, "ERROR", f"shell:timeout cmd='{cmd}'")
+        _log(config, st, "ERROR", f"run_shell():Timeout cmd='{cmd}'")
         return jsonify({
             "ok": False, "timeout": True, "code": None,
             "elapsed_sec": round(time.time() - start, 3),
@@ -69,7 +69,7 @@ def run_shell():
     stdout = (res.stdout or "")[:config["SHELL_MAX_CHARS"]]
     stderr = (res.stderr or "")[:config["SHELL_MAX_CHARS"]]
 
-    _log(config, st, "INFO", f"shell:run cmd='{cmd}' timeout={timeout}s")
+    _log(config, st, "INFO", f"run_shell():Run cmd='{cmd}' timeout={timeout}s")
     return jsonify({
         "ok": res.returncode == 0,
         "code": res.returncode,

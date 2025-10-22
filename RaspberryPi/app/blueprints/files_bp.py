@@ -39,7 +39,7 @@ def list_files():
         try:
             names = os.listdir(target)
         except Exception as e:
-            _log(config, state, "ERROR", f"image:capture failed: {e}")
+            _log(config, state, "ERROR", f"list_files():Failed to load files: {e}")
             return jsonify({"ok": False, "error": f"Cannot list directory: {e}"}), 500
 
         names.sort(key=lambda n: (not os.path.isdir(os.path.join(target, n)), n.lower()))
@@ -66,7 +66,7 @@ def list_files():
             "entries": entries
         })
     except Exception as e:
-        _log(config, state, "ERROR", f"image:capture failed: {e}")
+        _log(config, state, "ERROR", f"list_files():Failed to list files: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
@@ -221,7 +221,7 @@ def delete_entry():
             action = "moved_to_trash"
 
         free_pct = _read_disk_free_percent(config)
-        _log(config, state, "INFO", f"fs:{action} path='{rel}'")
+        _log(config, state, "INFO", f"delete_entry():Action:{action} path='{rel}'")
         return jsonify({
             "ok": True,
             "action": action,
@@ -229,5 +229,5 @@ def delete_entry():
             "disk_free_pct": None if free_pct is None else round(free_pct, 1)
         })
     except Exception as e:
-        _log(config, state, "ERROR", f"image:capture failed: {e}")
+        _log(config, state, "ERROR", f"delete_entry():Failed to delete file/directory: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500

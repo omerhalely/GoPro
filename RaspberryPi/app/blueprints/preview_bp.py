@@ -23,15 +23,15 @@ def preview_mjpg():
     st = current_app.extensions["state"]
 
     if config["DEVELOPMENT_MODE"]:
-        _log(config, st, "INFO", f"DEVELOPMENT MODE - preview image is not available | "
+        _log(config, st, "INFO", f"preview_mjpg():DEVELOPMENT MODE - preview image is not available | "
                                  f"[{st.CURRENT_VIDEO_RES[0]}x{st.CURRENT_VIDEO_RES[1]} | FPS = {st.CURRENT_VIDEO_FPS}]")
         return jsonify({"ok": False, "error": "Preview disabled in DEV"}), 503
 
     try:
         cam = _ensure_picam2(st)
-        _log(config, st, "INFO", f"Preview image | [{st.CURRENT_VIDEO_RES[0]}x{st.CURRENT_VIDEO_RES[1]} | FPS = {st.CURRENT_VIDEO_FPS}]")
+        _log(config, st, "INFO", f"preview_mjpg():Shape = [{st.CURRENT_VIDEO_RES[0]}x{st.CURRENT_VIDEO_RES[1]} | FPS = {st.CURRENT_VIDEO_FPS}]")
     except Exception as e:
-        _log(config, st, "ERROR", f"image:capture failed: {e}")
+        _log(config, st, "ERROR", f"preview_mjpg():Failed to preview image: {e}")
         return jsonify({"ok": False, "error": f"camera init failed: {e}"}), 503
 
     def gen():

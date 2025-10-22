@@ -84,7 +84,7 @@ def post_config():
     except Exception:
         pass
 
-    _log(config, st, "INFO", f"config:update save_dir='{st.CURRENT_SAVE_DIR}' img={_res_to_str(st.CURRENT_IMAGE_RES)} "
+    _log(config, st, "INFO", f"post_config():Update save_dir='{st.CURRENT_SAVE_DIR}' img={_res_to_str(st.CURRENT_IMAGE_RES)} "
                              f"vid={_res_to_str(st.CURRENT_VIDEO_RES)} fps={st.CURRENT_VIDEO_FPS}")
     return jsonify({
         "ok": True,

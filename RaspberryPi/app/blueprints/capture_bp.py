@@ -36,7 +36,7 @@ def _run_capture_thread(app) -> None:
         try:
             os.makedirs(save_dir, exist_ok=True)
         except Exception as e:
-            _log(config, state, "ERROR", f"image:capture failed: {e}")
+            _log(config, state, "ERROR", f"_run_capture_thread():Video capture failed: {e}")
             return
 
         print(f"[capture] Saving video to: {save_dir}")
@@ -68,14 +68,14 @@ def _run_capture_thread(app) -> None:
                 bitrate = 3_000_000  # default for 640x480
 
             if config["DEVELOPMENT_MODE"]:
-                _log(config, state, "INFO", "Video capture is not available in DEVELOPMENT MODE")
+                _log(config, state, "INFO", "_run_capture_thread():Video capture is not available in DEVELOPMENT MODE")
                 return
 
             if video_capture is None:
-                _log(config, state, "ERROR", "[capture][error] VideoCapture.video_capture not available")
+                _log(config, state, "ERROR", "_run_capture_thread():VideoCapture.video_capture is None")
                 return
 
-            _log(config, state, "INFO", f"Capturing Video | FPS : {state.CURRENT_VIDEO_FPS} | "
+            _log(config, state, "INFO", f"_run_capture_thread():Capturing Video | FPS : {state.CURRENT_VIDEO_FPS} | "
                                         f"Height : {h} | Width : {w} |")
             try:
                 video_capture(
@@ -88,7 +88,7 @@ def _run_capture_thread(app) -> None:
                     controls=_effective_controls_dict(state._preview_ctrls)
                 )
             except Exception as e:
-                _log(config, state, "ERROR", f"[capture][error] VideoCapture.video_capture Failed: {e}")
+                _log(config, state, "ERROR", f"_run_capture_thread():VideoCapture.video_capture Failed: {e}")
     finally:
         # Mark as not running even on error or stop
         with state._state_lock:
@@ -113,7 +113,7 @@ def start_capture():
         st._stop_evt.clear()
         st._is_running = True
         _log(config, st, "INFO",
-             f"capture:start save_dir='{st.CURRENT_SAVE_DIR}' res={st.CURRENT_VIDEO_RES} fps={st.CURRENT_VIDEO_FPS}")
+             f"start_capture():Capturing video - save_dir='{st.CURRENT_SAVE_DIR}' res={st.CURRENT_VIDEO_RES} fps={st.CURRENT_VIDEO_FPS}")
         st._last_start_ts = int(time.time())
         _capture_thread = threading.Thread(target=_run_capture_thread, args=(current_app._get_current_object(),), daemon=True)
         _capture_thread.start()
@@ -131,7 +131,7 @@ def stop_capture():
     config = current_app.config
     st = current_app.extensions["state"]
     st._stop_evt.set()
-    _log(config, st, "INFO", "capture:stop signaled")
+    _log(config, st, "INFO", "stop_capture():Stopped capturing video")
     return jsonify({"status": "stop signaled"})
 
 
@@ -167,7 +167,7 @@ def capture_image_endpoint():
     try:
         os.makedirs(save_dir, exist_ok=True)
     except Exception as e:
-        _log(config, st, "ERROR", f"image:capture failed: {e}")
+        _log(config, st, "ERROR", f"capture_image_endpoint():Capture image failed: {e}")
         return jsonify({"ok": False, "error": f"Cannot create directory: {e}"}), 500
 
     # Call real image_capture()
@@ -192,11 +192,11 @@ def capture_image_endpoint():
             )
             if not path:
                 return jsonify({"ok": False, "error": "capture_image() returned no path"}), 500
-            _log(config, st, "INFO", f"image:capture path='{path}'")
+            _log(config, st, "INFO", f"capture_image_endpoint():Capture path='{path}'")
             return jsonify({"ok": True, "path": path, "dev": False})
 
         elif image_capture is None and not config["DEVELOPMENT_MODE"]:
-            _log(config, st, "ERROR", f"[capture][error] ImageCapture.image_capture not available")
+            _log(config, st, "ERROR", f"capture_image_endpoint():ImageCapture.image_capture is None")
             return jsonify({"ok": True, "error": "capture_image() not available", "dev": False})
 
         else:
@@ -204,9 +204,9 @@ def capture_image_endpoint():
             ts = int(time.time())
             fname = f"snapshot_{ts}.jpg"
             fpath = os.path.join(save_dir, fname)
-            _log(config, st, "INFO", f"image:capture path='{fpath}'")
+            _log(config, st, "INFO", f"capture_image_endpoint():Capture path='{fpath}'")
             return jsonify({"ok": True, "path": fpath, "dev": True})
 
     except Exception as e:
-        _log(config, st, "ERROR", f"image:capture failed: {e}")
+        _log(config, st, "ERROR", f"capture_image_endpoint():Capture failed: {e}")
         return jsonify({"ok": False, "error": str(e)}), 500

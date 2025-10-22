@@ -61,7 +61,7 @@ def _apply_preview_controls_if_running(config, state) -> bool:
             state._picam2.set_controls(_effective_controls_dict(state._preview_ctrls))
             return True
         except Exception as e:
-            _log(config, state, "ERROR", f"image:capture failed: {e}")
+            _log(config, state, "ERROR", f"_apply_preview_controls_if_running():Failed to apply preview controls: {e}")
             return False
 
 
