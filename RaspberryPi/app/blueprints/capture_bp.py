@@ -1,5 +1,6 @@
 from flask import Blueprint, current_app, jsonify, request, Response
 from ..core.logger import _log
+from ..core.utils import _effective_controls_dict
 import time, threading, os
 
 try:
@@ -84,7 +85,7 @@ def _run_capture_thread(app) -> None:
                     height=h,
                     fps=int(state.CURRENT_VIDEO_FPS),
                     bitrate=int(bitrate),
-                    controls=state._preview_ctrls
+                    controls=_effective_controls_dict(state._preview_ctrls)
                 )
             except Exception as e:
                 _log(config, state, "ERROR", f"[capture][error] VideoCapture.video_capture Failed: {e}")
@@ -172,12 +173,22 @@ def capture_image_endpoint():
     # Call real image_capture()
     try:
         if image_capture is not None and not config["DEVELOPMENT_MODE"]:
+            if st._picam2 is not None:
+                try:
+                    st._picam2.stop()
+                except Exception:
+                    pass
+                try:
+                    st._picam2.close()
+                except Exception:
+                    pass
+                st._picam2 = None
             w, h = int(st.CURRENT_IMAGE_RES[0]), int(st.CURRENT_IMAGE_RES[1])
             path = image_capture(
                 output_dir=save_dir,
                 width=w,
                 height=h,
-                controls=st._preview_ctrls
+                controls=_effective_controls_dict(st._preview_ctrls)
             )
             if not path:
                 return jsonify({"ok": False, "error": "capture_image() returned no path"}), 500

@@ -180,7 +180,7 @@ def _ensure_picam2(state: AppState):
         ctrl_init = _effective_controls_dict(state._preview_ctrls)
 
         config = picam2.create_preview_configuration(
-            main={"size": (width, height), "format": "YUV420"},
+            main={"size": (width, height), "format": "RGB888"},
             controls={
                 "FrameRate": int(state.CURRENT_VIDEO_FPS),
                 **ctrl_init
