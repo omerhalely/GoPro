@@ -1,5 +1,5 @@
 {
-  "development_mode": true,
+  "development_mode": false,
   "shell_enabled": true,
   "default_save_dir": "./outputs",
   "image_res_default": [640, 480],

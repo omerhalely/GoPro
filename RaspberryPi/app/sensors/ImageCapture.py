@@ -1,4 +1,5 @@
 import os
+import time
 from datetime import datetime
 from picamera2 import Picamera2
 from typing import Union
@@ -33,7 +34,7 @@ def image_capture(
     config = picam2.create_preview_configuration(
         main={
             "size": (width, height),
-            "format": "YUV420"
+            "format": "RGB888"
         },
     )
     picam2.configure(config)
@@ -42,7 +43,10 @@ def image_capture(
         picam2.set_controls(controls)
 
     try:
-        picam2.capture(output_path)
+        picam2.start()
+        time.sleep(0.5)
+        picam2.capture_file(output_path)
+        picam2.stop()
     finally:
         if picam2 is not None:
             picam2.close()

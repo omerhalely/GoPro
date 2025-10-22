@@ -69,7 +69,7 @@ def video_capture(
     config = picam2.create_preview_configuration(
         main={
             "size": (width, height),
-            "format": "YUV420"
+            "format": "RGB888"
         },
         controls={
             "FrameRate": fps
