@@ -14,7 +14,7 @@ def get_path(output_dir):
     if not os.path.exists(current_date_image_path):
         os.mkdir(current_date_image_path)
     current_time = datetime.now().strftime("%H-%M-%S")
-    output_path = os.path.join(current_date_image_path, f"{current_time}.avi")
+    output_path = os.path.join(current_date_image_path, f"{current_time}.jpg")
     return output_path
 
 
