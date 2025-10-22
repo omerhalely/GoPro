@@ -7,10 +7,20 @@
   <link rel="stylesheet" href="/static/app.css" />
 </head>
 <body>
-  <!-- Theme toggle (top-left) -->
-  <button id="theme-toggle" class="theme-btn" aria-label="Toggle theme" title="Toggle theme">
-    <span id="theme-icon" aria-hidden="true">🌙</span>
-  </button>
+  <!-- Top-left tools (theme + refresh) -->
+  <div id="top-left-tools" class="top-tools">
+    <button id="theme-toggle" class="tool-btn" aria-label="Toggle theme" title="Toggle theme">
+      <span id="theme-icon" aria-hidden="true">🌙</span>
+    </button>
+
+    <button id="refresh-btn" class="tool-btn" aria-label="Refresh" title="Refresh">
+      <!-- simple refresh icon -->
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M20 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
 
   <div class="wrap">
     <h1>🎥 PiCam Controller</h1>

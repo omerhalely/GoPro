@@ -57,6 +57,80 @@ const ThemeController = (() => {
 })();
 
 // ======================================================
+// Refresh button
+// ======================================================
+const RefreshController = (() => {
+  function flash(msg, ok=true) {
+    // lightweight toast near the button
+    let el = document.getElementById('refresh-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'refresh-toast';
+      el.style.position = 'fixed';
+      el.style.top = '46px';
+      el.style.left = '14px';
+      el.style.zIndex = '3001';
+      el.style.padding = '6px 10px';
+      el.style.borderRadius = '8px';
+      el.style.border = '1px solid var(--border)';
+      el.style.background = 'var(--card-bg)';
+      el.style.color = 'var(--text)';
+      el.style.fontSize = '12px';
+      el.style.boxShadow = '0 0 6px rgba(0,0,0,.25)';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.opacity = '1';
+    el.style.borderColor = ok ? '#1e784d' : '#a12a2a';
+    el.style.transition = 'opacity .3s ease';
+    setTimeout(() => el.style.opacity = '0', 1200);
+  }
+
+  async function callRefresh() {
+    const btn = document.getElementById('refresh-btn');
+    if (!btn) return;
+
+    // spin the icon right away
+    const icon = btn.querySelector('svg');
+    const anim = icon?.animate(
+      [{ transform: 'rotate(0deg)' }, { transform: 'rotate(360deg)' }],
+      { duration: 500 }
+    );
+
+    btn.disabled = true;
+    try {
+      const res = await fetch('/refresh', { method: 'POST', cache: 'no-store' });
+      if (!res.ok) {
+        // Endpoint missing or error
+        console.warn('Refresh endpoint error:', res.status, res.statusText);
+        flash('Refresh endpoint not ready', /*ok=*/false);
+
+        // Optional: force a hard reload as a fallback
+        // location.reload();
+        return;
+      }
+      // We don’t care about the payload, but you can:
+      // const data = await res.json().catch(() => ({}));
+      flash('Refreshed ✓', /*ok=*/true);
+    } catch (e) {
+      console.warn('Refresh call failed:', e);
+      flash('Network error', /*ok=*/false);
+      // Optional reload fallback:
+      // location.reload();
+    } finally {
+      await anim?.finished?.catch(() => {});
+      btn.disabled = false;
+    }
+  }
+
+  function init() {
+    const btn = document.getElementById('refresh-btn');
+    if (btn) btn.addEventListener('click', callRefresh);
+  }
+  return { init };
+})();
+
+// ======================================================
 // PanelController (mutual exclusivity for any registered panel)
 // ======================================================
 const PanelController = (() => {
@@ -1418,6 +1492,7 @@ function openViewer(filePath, fileName){
 // ======================================================
 document.addEventListener('DOMContentLoaded', () => {
   ThemeController.init(); // bind theme toggle immediately
+  RefreshController.init();
 });
 
 async function boot(){

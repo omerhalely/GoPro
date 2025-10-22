@@ -14,6 +14,7 @@ from .blueprints.preview_bp import bp as preview_bp
 from .blueprints.power_bp import bp as power_bp
 from .blueprints.shell_bp import bp as shell_bp
 from .blueprints.log_bp import bp as log_bp
+from .blueprints.refresh_bp import bp as refresh_bp
 
 def create_app() -> Flask:
     app = Flask(__name__, static_folder="../static", template_folder="templates")
@@ -39,6 +40,7 @@ def create_app() -> Flask:
     app.register_blueprint(power_bp)
     app.register_blueprint(shell_bp)
     app.register_blueprint(log_bp)
+    app.register_blueprint(refresh_bp)
 
     _log(config, state, "INFO", "Built Application Successfully")
     return app
