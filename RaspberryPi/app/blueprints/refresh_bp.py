@@ -21,15 +21,24 @@ def refresh():
     else:
         bash_path = os.path.join(os.getcwd(), "bash", "refresh_app.sh")
         _log(config, state, "INFO", "refresh():Refreshing software")
-        subprocess.run(
-            ["bash", bash_path],
-            capture_output=False,
-            text=True
-        )
-        return jsonify({
-            "ok": True,
-            "dev": config["DEVELOPMENT_MODE"],
-            "reset": True
-        })
+        try:
+            subprocess.run(
+                ["bash", bash_path],
+                capture_output=False,
+                text=True
+            )
+            return jsonify({
+                "ok": True,
+                "dev": config["DEVELOPMENT_MODE"],
+                "reset": True
+            })
+
+        except Exception as e:
+            _log(config, state, "ERROR", f"refresh():Failed running the bash file: {e}")
+            return  jsonify({
+                "ok": False,
+                "dev": config["DEVELOPMENT_MODE"],
+                "reset": False
+            })
 
 
