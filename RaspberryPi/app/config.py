@@ -41,7 +41,7 @@ class AppConfig:
     LOG_DIR = cfg["log_dir"]
     os.makedirs(LOG_DIR, exist_ok=True)
     log_files = os.listdir(LOG_DIR)
-    for file in log_files[:-6]:
+    for file in log_files[:-4]:
         file_path = os.path.join(LOG_DIR, file)
         os.remove(file_path)
 
