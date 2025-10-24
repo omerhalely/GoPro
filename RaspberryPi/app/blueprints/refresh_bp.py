@@ -1,5 +1,5 @@
 from flask import Blueprint, current_app, jsonify
-import os, subprocess, signal
+import subprocess
 from pathlib import Path
 from ..core.logger import _log
 
@@ -25,6 +25,8 @@ def refresh():
         try:
             if current_app.debug:
                 Path(__file__).touch()
+            else:
+                subprocess.Popen(["sudo", "systemctl", "restart", "myflask.service"])
             return jsonify({
                 "ok": True,
                 "dev": config["DEVELOPMENT_MODE"],
