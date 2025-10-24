@@ -40,6 +40,10 @@ class AppConfig:
     # Logger
     LOG_DIR = cfg["log_dir"]
     os.makedirs(LOG_DIR, exist_ok=True)
+    log_files = os.listdir(LOG_DIR)
+    for file in log_files[:-5]:
+        file_path = os.path.join(LOG_DIR, file)
+        os.remove(file_path)
 
     # Rotate every N hours (no thread; checked on each write)
     LOG_RESET_HOURS_DEFAULT = cfg["log_reset_hours_default"]
