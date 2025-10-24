@@ -3,6 +3,7 @@ import subprocess
 from typing import Optional, Tuple
 from flask.config import Config
 from .state import AppState
+from .utils import _filter_controls
 
 
 try:
@@ -177,7 +178,7 @@ def _ensure_picam2(state: AppState):
         height = int(state.CURRENT_VIDEO_RES[1])
 
         # Start with current preview controls (skip Nones for manual fields)
-        ctrl_init = state._preview_ctrls
+        ctrl_init = _filter_controls(state._preview_ctrls)
 
         config = picam2.create_preview_configuration(
             main={"size": (width, height), "format": "RGB888"},

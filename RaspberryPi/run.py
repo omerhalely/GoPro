@@ -7,8 +7,7 @@ parser = argparse.ArgumentParser(description="GoPro Parser")
 parser.add_argument(
     "--dev",
     type=lambda x: (str(x) == "true"),
-    required=True,
-    default="true",
+    default="false",
     help="true - dev mode | false - production mode"
 )
 args = parser.parse_args()

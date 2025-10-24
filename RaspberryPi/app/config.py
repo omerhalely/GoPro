@@ -49,6 +49,7 @@ class AppConfig:
 
     # Preview defaults
     DEFAULT_PREVIEW_CTRLS = {
+        "AeEnable": True,
         "NoiseReductionMode": cfg["NoiseReductionMode"],
         "AwbEnable": cfg["AwbEnable"],
         "AeMeteringMode": cfg["AeMeteringMode"],
@@ -58,7 +59,6 @@ class AppConfig:
         "ExposureTime": cfg["ExposureTime"],
         "AnalogueGain": cfg["AnalogueGain"],
         "AeConstraintMode": cfg["AeConstraintMode"],
-        "DigitalGain": cfg["DigitalGain"],
         "Brightness": cfg["Brightness"],
         "Contrast": cfg["Contrast"],
         "Saturation": cfg["Saturation"],

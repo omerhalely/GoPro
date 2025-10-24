@@ -40,13 +40,22 @@ def _safe_under_base(base: str, rel: str) -> str:
     return target
 
 
+def _filter_controls(controls: dict):
+    output_controls = {}
+    for key in controls:
+        if controls[key] is not None:
+            output_controls[key] = controls[key]
+    return output_controls
+
 def _apply_preview_controls_if_running(config, state) -> bool:
     """Apply _preview_ctrls to the running preview camera, if present."""
     with state._picam_lock:
         if state._picam2 is None:
             return False
         try:
-            state._picam2.set_controls(state._preview_ctrls)
+            print("Filtering controls")
+            print(_filter_controls(state._preview_ctrls))
+            state._picam2.set_controls(_filter_controls(state._preview_ctrls))
             return True
         except Exception as e:
             _log(config, state, "ERROR", f"_apply_preview_controls_if_running():Failed to apply preview controls: {e}")
