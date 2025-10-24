@@ -4,6 +4,7 @@ from picamera2.encoders import H264Encoder
 import cv2, psutil, threading, queue, os
 from datetime import datetime
 from typing import Union
+from ..core.utils import _filter_controls
 
 
 frame_queue = queue.Queue(maxsize=500)
@@ -78,7 +79,7 @@ def video_capture(
     picam2.configure(config)
 
     if controls is not None:
-        picam2.set_controls(controls)
+        picam2.set_controls(_filter_controls(controls))
 
     encoder = H264Encoder(bitrate=bitrate, repeat=inline_headers)
     output = FfmpegOutput(output_path)

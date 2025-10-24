@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 from picamera2 import Picamera2
 from typing import Union
+from ..core.utils import _filter_controls
 
 
 def get_path(output_dir):
@@ -40,7 +41,7 @@ def image_capture(
     picam2.configure(config)
 
     if controls is not None:
-        picam2.set_controls(controls)
+        picam2.set_controls(_filter_controls(controls))
 
     try:
         picam2.start()
