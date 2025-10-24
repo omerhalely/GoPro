@@ -3,7 +3,7 @@ import subprocess
 from typing import Optional, Tuple
 from flask.config import Config
 from .state import AppState
-from .utils import _effective_controls_dict
+
 
 try:
     from picamera2 import Picamera2
@@ -177,13 +177,12 @@ def _ensure_picam2(state: AppState):
         height = int(state.CURRENT_VIDEO_RES[1])
 
         # Start with current preview controls (skip Nones for manual fields)
-        ctrl_init = _effective_controls_dict(state._preview_ctrls)
+        ctrl_init = state._preview_ctrls
 
         config = picam2.create_preview_configuration(
             main={"size": (width, height), "format": "RGB888"},
             controls={
-                "FrameRate": int(state.CURRENT_VIDEO_FPS),
-                **ctrl_init
+                "FrameRate": int(state.CURRENT_VIDEO_FPS)
             }
         )
         picam2.configure(config)

@@ -40,25 +40,13 @@ def _safe_under_base(base: str, rel: str) -> str:
     return target
 
 
-def _effective_controls_dict(controls: dict) -> dict:
-    """Build a dict for Picamera2.set_controls, skipping None values."""
-    out = {}
-    for k in ("AeEnable", "ExposureTime", "AnalogueGain", "DigitalGain",
-              "Brightness", "Contrast", "Saturation", "Sharpness"):
-        v = controls.get(k, None)
-        if v is None and k in ("ExposureTime", "AnalogueGain", "DigitalGain"):
-            continue  # don't send Nones for manual-only items
-        out[k] = v
-    return out
-
-
 def _apply_preview_controls_if_running(config, state) -> bool:
     """Apply _preview_ctrls to the running preview camera, if present."""
     with state._picam_lock:
         if state._picam2 is None:
             return False
         try:
-            state._picam2.set_controls(_effective_controls_dict(state._preview_ctrls))
+            state._picam2.set_controls(state._preview_ctrls)
             return True
         except Exception as e:
             _log(config, state, "ERROR", f"_apply_preview_controls_if_running():Failed to apply preview controls: {e}")

@@ -21,7 +21,6 @@ class AppConfig:
         cfg = json.load(file)
 
     # Core toggles
-    DEVELOPMENT_MODE = cfg["development_mode"]
     SHELL_ENABLED = cfg["shell_enabled"]
 
     # Paths
@@ -50,17 +49,28 @@ class AppConfig:
 
     # Preview defaults
     DEFAULT_PREVIEW_CTRLS = {
-        "AeEnable": cfg["AeEnable"],  # auto exposure
-        "ExposureTime": cfg["ExposureTime"],  # μs (manual only if AeEnable=False)
-        "AnalogueGain": cfg["AnalogueGain"],  # 1.0..16.0 (manual only if AeEnable=False)
-        "DigitalGain": cfg["DigitalGain"],  # 1.0..16.0 (manual only if AeEnable=False)
-        "Brightness": cfg["Brightness"],  # -1.0..+1.0
-        "Contrast": cfg["Contrast"],  # 0..32
-        "Saturation": cfg["Saturation"],  # 0..32
-        "Sharpness": cfg["Sharpness"]  # 0..16
+        "NoiseReductionMode": cfg["NoiseReductionMode"],
+        "AwbEnable": cfg["AwbEnable"],
+        "AeMeteringMode": cfg["AeMeteringMode"],
+        "AwbMode": cfg["AwbMode"],
+        "ColourGains": cfg["ColourGains"],
+        "AeExposureMode": cfg["AeExposureMode"],
+        "ExposureTime": cfg["ExposureTime"],
+        "AnalogueGain": cfg["AnalogueGain"],
+        "AeConstraintMode": cfg["AeConstraintMode"],
+        "DigitalGain": cfg["DigitalGain"],
+        "Brightness": cfg["Brightness"],
+        "Contrast": cfg["Contrast"],
+        "Saturation": cfg["Saturation"],
+        "Sharpness": cfg["Sharpness"]
     }
 
     # INA219
-    if not DEVELOPMENT_MODE:
+    try:
         I2C = busio.I2C(board.SCL, board.SDA)
+    except Exception:
+        pass
+    try:
         INA = ina219(I2C)
+    except Exception:
+        pass
