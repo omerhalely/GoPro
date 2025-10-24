@@ -1,5 +1,6 @@
 from flask import Blueprint, current_app, jsonify
-import os, subprocess
+import os, subprocess, signal
+from pathlib import Path
 from ..core.logger import _log
 
 
@@ -19,14 +20,11 @@ def refresh():
             "reset": True
         })
     else:
-        bash_path = os.path.join(os.getcwd(), "bash", "refresh_app.sh")
-        _log(config, state, "INFO", "refresh():Refreshing software")
+        _log(config, state, "INFO",
+             "refresh():Refreshing software | Mode:{'Debug' if current_app.debug else 'Production'}")
         try:
-            subprocess.run(
-                ["bash", bash_path],
-                capture_output=False,
-                text=True
-            )
+            if current_app.debug:
+                Path(__file__).touch()
             return jsonify({
                 "ok": True,
                 "dev": config["DEVELOPMENT_MODE"],
