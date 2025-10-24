@@ -9,7 +9,7 @@
   "shell_max_chars": 100000,
   "log_dir": "./logs",
   "log_reset_hours_default": 24,
-  "NoiseReductionMode":1,
+  "NoiseReductionMode":2,
   "AwbEnable": true,
   "AeMeteringMode": 2,
   "AwbMode": 0,
@@ -21,5 +21,5 @@
   "Brightness": 0.0,
   "Contrast": 1.0,
   "Saturation": 1.0,
-  "Sharpness": 1.0
+  "Sharpness": 1.5
 }
