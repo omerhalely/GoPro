@@ -2,14 +2,20 @@
   "development_mode": false,
   "shell_enabled": true,
   "default_save_dir": "./outputs",
-  "image_res_default": [640, 480],
-  "video_res_default": [640, 480],
+  "image_res_default": [
+    640,
+    480
+  ],
+  "video_res_default": [
+    640,
+    480
+  ],
   "video_fps_default": 25,
   "shell_timeout_default": 25,
   "shell_max_chars": 100000,
   "log_dir": "./logs",
   "log_reset_hours_default": 24,
-  "NoiseReductionMode":2,
+  "NoiseReductionMode": 2,
   "AwbEnable": true,
   "AeMeteringMode": 2,
   "AwbMode": 0,
@@ -21,5 +27,6 @@
   "Brightness": 0.0,
   "Contrast": 1.0,
   "Saturation": 1.0,
-  "Sharpness": 1.5
+  "Sharpness": 1.5,
+  "LedGPIOPin": 18
 }

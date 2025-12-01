@@ -73,4 +73,4 @@ class AppConfig:
     try:
         INA = ina219(I2C)
     except Exception:
-        pass
+        INA = None

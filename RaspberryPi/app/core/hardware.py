@@ -11,6 +11,11 @@ try:
 except Exception as e:
     Picamera2 = None
 
+try:
+    import RPi.GPIO as GPIO
+except Exception as e:
+    GPIO = None
+
 
 def _randf(lo: float, hi: float) -> float:
     """Return a random float in [lo, hi] without importing random."""
@@ -128,14 +133,16 @@ def _read_cpu_freq_mhz(config: Config) -> Optional[float]:
 
 def _set_led(config: Config, state: AppState, on: bool) -> None:
     """Set LED state (placeholder; implement with GPIO if desired)."""
-    state.LED_ON = bool(on)
+    state.LED_ON = on
     if config["DEVELOPMENT_MODE"]:
+        state.LED_ON = False
         return
     try:
-        # TODO: implement actual GPIO control
-        pass
+        gpio_pin = state.LED_PIN
+        GPIO.output(gpio_pin, on)
+        return state.LED_ON
     except Exception:
-        pass
+        return False
 
 
 def _read_voltage_current(config: Config) -> Tuple[Optional[float], Optional[float], Optional[float]]:

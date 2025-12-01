@@ -1,9 +1,10 @@
 import os
 from pathlib import Path
 import cv2
-import bm3d
 import matplotlib.pyplot as plt
 import numpy as np
+
+from VideoIterator import VideoIterator
 
 
 # -------------------------
@@ -262,16 +263,9 @@ def sharp_image(image, method, ksize, std, alpha):
 if __name__ == "__main__":
     parent = os.path.abspath(os.path.join(os.getcwd(), ".."))
     path = os.path.join(parent, "RaspberryPi", "outputs", "14-10-2025", "videos", "output.avi")
-    cap = cv2.VideoCapture(path)
 
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    video_iterator = VideoIterator(path)
 
-    W = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    H = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    # size = (width, height)
-
-    # fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # "mp4v" works for .mp4 on most setups
-    # out = cv2.VideoWriter("Filtered.mp4", fourcc, fps, size)
     frames_R = []
     frames_G = []
     frames_B = []
@@ -282,7 +276,7 @@ if __name__ == "__main__":
     N = 5
     std = 0
     for i in range(N):
-        ret, frame = cap.read()
+        frame = video_iterator[i]
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
@@ -329,7 +323,11 @@ if __name__ == "__main__":
 
     x_hat_sharp = sharp_image(x_hat, method, ksize, std, alpha)
 
-    fig, axis = plt.subplots(1, 2)
-    axis[0].imshow(x_hat)
-    axis[1].imshow(x_hat_sharp)
+    fig, axis = plt.subplots(1, 3)
+    axis[0].imshow(noisy_frame)
+    axis[1].imshow(x_hat)
+    axis[2].imshow(x_hat_sharp)
+    axis[0].set_title("Noisy frame")
+    axis[1].set_title("Denoised frame")
+    axis[2].set_title("Sharpened frame")
     plt.show()

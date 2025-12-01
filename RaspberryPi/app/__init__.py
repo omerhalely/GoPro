@@ -44,4 +44,11 @@ def create_app(dev_mode: bool) -> Flask:
     app.register_blueprint(refresh_bp)
 
     _log(config, state, "INFO", "Built Application Successfully")
+    _set_led(config, state, state.LED_ON)
+
+    if app.config["INA"]:
+        if app.config["INA"].get_status():
+            _log(config, state, "INFO", "INA219 Found")
+        else:
+            _log(config, state, "WARNING", "INA219 Not Found")
     return app

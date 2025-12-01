@@ -2,6 +2,10 @@ import datetime as dt
 import os, threading
 from typing import Optional
 
+try:
+    import RPi.GPIO as GPIO
+except Exception:
+    GPIO = None
 
 class AppState:
     def __init__(self, config):
@@ -17,7 +21,11 @@ class AppState:
         self._prev_idle = None
 
         # LED
-        self.LED_ON = False
+        self.LED_ON = True
+        self.LED_PIN = config["LedGPIOPin"]
+        if GPIO:
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self.LED_PIN, GPIO.OUT)
 
         # Files
         self.CURRENT_SAVE_DIR = config["DEFAULT_SAVE_DIR"]

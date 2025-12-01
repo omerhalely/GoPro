@@ -1,7 +1,7 @@
 from flask import Blueprint, current_app, jsonify, request
 from ..core.logger import _log
 from ..core.utils import _res_to_str, _parse_res_str
-
+from ..core.hardware import _set_led
 
 bp = Blueprint("config", __name__)
 
@@ -28,7 +28,7 @@ def get_config():
         "video_fps_default": config["VIDEO_FPS_DEFAULT"],
         "video_fps_current": st.CURRENT_VIDEO_FPS,
 
-        "led_on": False if config["DEVELOPMENT_MODE"] else False,
+        "led_on": False if config["DEVELOPMENT_MODE"] else _set_led(config, st, st.LED_ON),
     })
 
 
@@ -83,13 +83,23 @@ def post_config():
                 st.CURRENT_VIDEO_FPS = fps
     except Exception:
         pass
+    
+    # LED
+    led_on = body.get("led_on")
+    try:
+        if led_on is not None:
+            led_on = bool(led_on)
+            _set_led(config, st, led_on)
+    except Exception:
+        pass
 
     _log(config, st, "INFO", f"post_config():Update save_dir='{st.CURRENT_SAVE_DIR}' img={_res_to_str(st.CURRENT_IMAGE_RES)} "
-                             f"vid={_res_to_str(st.CURRENT_VIDEO_RES)} fps={st.CURRENT_VIDEO_FPS}")
+                             f"vid={_res_to_str(st.CURRENT_VIDEO_RES)} fps={st.CURRENT_VIDEO_FPS} led={st.LED_ON}")
     return jsonify({
         "ok": True,
         "save_dir_current": st.CURRENT_SAVE_DIR,
         "image_res_current": _res_to_str(st.CURRENT_IMAGE_RES),
         "video_res_current": _res_to_str(st.CURRENT_VIDEO_RES),
         "video_fps_current": st.CURRENT_VIDEO_FPS,
+        "led_on": st.LED_ON,
     })

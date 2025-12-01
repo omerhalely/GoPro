@@ -37,7 +37,7 @@ class ina219:
     
     def get_current(self):
         if self.ina219:
-            return self.ina219.current
+            return self.ina219.current / 1000
         return 0
     
     def get_power(self):
