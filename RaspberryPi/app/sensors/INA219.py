@@ -4,7 +4,7 @@ import busio
 
 
 class ina219:
-    def __init__(self, i2c, filter_factor=0.9):
+    def __init__(self, i2c, filter_factor=0.7):
         while not i2c.try_lock():
             pass
         addresses = i2c.scan()
