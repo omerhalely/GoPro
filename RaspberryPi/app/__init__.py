@@ -3,6 +3,7 @@ from flask import Flask
 from .config import AppConfig
 from .core.state import AppState
 from .core.logger import _log
+from .core.hardware import _set_led
 
 # Blueprints
 from .blueprints.web_bp import bp as web_bp
