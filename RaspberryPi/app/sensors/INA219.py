@@ -4,15 +4,24 @@ import busio
 
 
 class ina219:
-    def __init__(self, i2c):
+    def __init__(self, i2c, filter_factor=0.9):
         while not i2c.try_lock():
             pass
         addresses = i2c.scan()
         i2c.unlock()
+
+        self.filter_factor = filter_factor
         
         self.ina219 = None
+        self.voltage = 0
+        self.current = 0
+        self.power   = 0
+        
         if addresses:
             self.ina219 = INA219(i2c)
+            self.voltage = self.get_voltage()
+            self.current = self.get_current()
+            self.power   = self.get_power()
         self.config()
     
     def config(self):
@@ -32,17 +41,20 @@ class ina219:
         if self.ina219:
             bus_voltage = self.ina219.bus_voltage
             shunt_voltage = self.ina219.shunt_voltage
-            return bus_voltage + shunt_voltage / 1000
+            self.voltage = self.voltage * self.filter_factor + (bus_voltage + shunt_voltage / 1000) * (1 - self.filter_factor)
+            return self.voltage
         return 0
     
     def get_current(self):
         if self.ina219:
-            return self.ina219.current / 1000
+            self.current = self.current * self.filter_factor + (self.ina219.current / 1000) * (1 - self.filter_factor)
+            return self.current
         return 0
     
     def get_power(self):
         if self.ina219:
-            return self.ina219.power
+            self.power = self.power * self.filter_factor + (self.ina219.power) * (1 - self.filter_factor)
+            return self.power
         return 0
     
     def __repr__(self):
