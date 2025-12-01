@@ -65,6 +65,9 @@ class AppConfig:
         "Sharpness": cfg["Sharpness"]
     }
 
+    # LED
+    LED_GPIO_PIN = cfg["LedGPIOPin"]
+
     # INA219
     try:
         I2C = busio.I2C(board.SCL, board.SDA)

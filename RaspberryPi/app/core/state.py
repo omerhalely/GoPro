@@ -22,7 +22,7 @@ class AppState:
 
         # LED
         self.LED_ON = True
-        self.LED_PIN = config["LedGPIOPin"]
+        self.LED_PIN = config["LED_GPIO_PIN"]
         if GPIO:
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(self.LED_PIN, GPIO.OUT)
