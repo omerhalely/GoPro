@@ -17,12 +17,11 @@ from .blueprints.shell_bp import bp as shell_bp
 from .blueprints.log_bp import bp as log_bp
 from .blueprints.refresh_bp import bp as refresh_bp
 
-def create_app(dev_mode: bool) -> Flask:
+def create_app() -> Flask:
     app = Flask(__name__, static_folder="../static", template_folder="templates")
 
     # Load config (env overrides allowed)
     app.config.from_object(AppConfig())
-    app.config["DEVELOPMENT_MODE"] = dev_mode
 
     # Attach shared state and logger
     app.extensions = getattr(app, "extensions", {})
@@ -30,7 +29,7 @@ def create_app(dev_mode: bool) -> Flask:
 
     config = app.config
     state = app.extensions["state"]
-    _log(config, state, "INFO", f"Building Application : {'DEVELOPMENT MODE' if dev_mode else 'PRODUCTION MODE'}")
+    _log(config, state, "INFO", f"Building Application : {'DEVELOPMENT MODE' if app.config['DEVELOPMENT_MODE'] else 'PRODUCTION MODE'}")
 
     # Register blueprints
     app.register_blueprint(web_bp)

@@ -19,6 +19,9 @@ class AppConfig:
     configurations_path = os.path.join(os.path.abspath(os.path.join(os.getcwd(), ".")), "configurations.json")
     with open(configurations_path, "r") as file:
         cfg = json.load(file)
+    
+    # Development mode
+    DEVELOPMENT_MODE = cfg["development_mode"]
 
     # Core toggles
     SHELL_ENABLED = cfg["shell_enabled"]

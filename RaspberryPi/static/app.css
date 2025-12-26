@@ -226,6 +226,13 @@ h2 {
   gap: 10px;
 }
 
+.tile.donut svg {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  flex: 0 0 auto;
+}
+
 .canvasBox {
   height: 60px;
   width: 100%;
