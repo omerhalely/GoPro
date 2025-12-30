@@ -26,7 +26,7 @@ def refresh():
             if current_app.debug:
                 Path(__file__).touch()
             else:
-                subprocess.Popen(["sudo", "systemctl", "restart", "myflask.service"])
+                subprocess.Popen(["sudo", "systemctl", "restart", "flask_app.service"])
             return jsonify({
                 "ok": True,
                 "dev": config["DEVELOPMENT_MODE"],

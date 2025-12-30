@@ -16,6 +16,7 @@ from .blueprints.power_bp import bp as power_bp
 from .blueprints.shell_bp import bp as shell_bp
 from .blueprints.log_bp import bp as log_bp
 from .blueprints.refresh_bp import bp as refresh_bp
+from .blueprints.network_bp import bp as network_bp
 
 def create_app() -> Flask:
     app = Flask(__name__, static_folder="../static", template_folder="templates")
@@ -42,6 +43,7 @@ def create_app() -> Flask:
     app.register_blueprint(shell_bp)
     app.register_blueprint(log_bp)
     app.register_blueprint(refresh_bp)
+    app.register_blueprint(network_bp)
 
     _log(config, state, "INFO", "Built Application Successfully")
     _set_led(config, state, state.LED_ON)

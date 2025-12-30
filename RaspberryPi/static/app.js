@@ -1494,7 +1494,111 @@ document.addEventListener('DOMContentLoaded', () => {
   RefreshController.init();
 });
 
+// ======================================================
+// Network Controller (Status Button + Switcher)
+// ======================================================
+const NetworkController = (() => {
+  const btn = document.getElementById('network-btn');
+  const pop = document.getElementById('network-pop');
+  const statusText = document.getElementById('network-status-text');
+  const swAp = document.getElementById('switch-ap-btn');
+  const swWifi = document.getElementById('switch-wifi-btn');
+
+  // Icons
+  const ICO_WIFI = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>`;
+  const ICO_AP = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"></path><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"></path><path d="M12 3v2"></path><path d="M12 19v2"></path><path d="M3 12h2"></path><path d="M19 12h2"></path></svg>`;
+  const ICO_UNKNOWN = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+
+  let currentMode = 'unknown';
+
+  async function check() {
+    try {
+      const res = await fetch('/network/status');
+      const data = await res.json();
+      currentMode = data.mode;
+      render(data);
+    } catch (e) {
+      console.warn('Network status check failed', e);
+    }
+  }
+
+  function render(status) {
+    if (!btn) return;
+
+    let ico = ICO_UNKNOWN;
+    if (status.mode === 'wifi') ico = ICO_WIFI;
+    if (status.mode === 'ap') ico = ICO_AP;
+
+    // Color: White if connected/has user, Gray if waiting
+    const color = status.connected ? 'var(--text)' : 'var(--muted)';
+    btn.innerHTML = ico;
+    btn.style.color = color;
+
+    // Update popover text
+    if (statusText) {
+      const ssid = status.ssid || '—';
+      if (status.mode === 'wifi') {
+        statusText.innerHTML = `Mode: <strong>Wi-Fi</strong><br>SSID: ${ssid}<br>Status: ${status.connected ? 'Connected' : 'Disconnected'}`;
+      } else if (status.mode === 'ap') {
+        statusText.innerHTML = `Mode: <strong>Access Point</strong><br>SSID: ${ssid}<br>Clients: ${status.connected ? 'Active' : 'None'}`;
+      } else {
+        statusText.innerHTML = `Mode: Unknown`;
+      }
+    }
+  }
+
+  async function doSwitch(mode) {
+    // UI feedback
+    if (statusText) statusText.textContent = `Switching to ${mode}...`;
+
+    try {
+      const res = await fetch('/network/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode })
+      });
+      const d = await res.json();
+      if (d.ok) {
+        // Optimistic update
+        console.log(`Switching initiated: ${d.message}`);
+        setTimeout(check, 3000); // Check again after a delay
+      } else {
+        console.warn('Switch failed: ' + (d.error || 'Unknown error'));
+      }
+    } catch (e) {
+      console.warn('Request error: ' + e);
+    }
+  }
+
+  function togglePop(e) {
+    e.stopPropagation();
+    pop.classList.toggle('show');
+  }
+
+  function init() {
+    if (btn) {
+      btn.addEventListener('click', togglePop);
+      check(); // initial check
+      setInterval(check, 5000); // poll every 5s
+    }
+
+    // Close on outside click
+    document.addEventListener('click', (e) => {
+      if (pop && pop.classList.contains('show') && !pop.contains(e.target) && !btn.contains(e.target)) {
+        pop.classList.remove('show');
+      }
+    });
+
+    if (swAp) swAp.addEventListener('click', () => doSwitch('ap'));
+    if (swWifi) swWifi.addEventListener('click', () => doSwitch('wifi'));
+  }
+
+  return { init, check };
+})();
+
+
 async function boot() {
+  NetworkController.init();
   await refreshStatus();
   setInterval(refreshStatus, 2000);
   setupWindowChips();

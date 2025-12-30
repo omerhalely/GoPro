@@ -23,6 +23,10 @@
         <path d="M20 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>
+
+    <button id="network-btn" class="tool-btn" aria-label="Network Status" title="Network Status">
+      <!-- Icon injected by JS -->
+    </button>
   </div>
 
   <div class="wrap">
@@ -334,7 +338,6 @@
 
   </div>
 
-  <!-- ===== Confirmation Modal ===== -->
   <div id="confirm-modal" class="modal" aria-hidden="true">
     <div class="modal-content">
       <h3 id="confirm-title">Confirm</h3>
@@ -343,6 +346,18 @@
         <button id="confirm-cancel" class="modal-btn cancel">Cancel</button>
         <button id="confirm-ok" class="modal-btn ok">Confirm</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== Network Switch Popover ===== -->
+  <div id="network-pop" role="dialog" aria-modal="false" aria-label="Network Settings">
+    <div class="network-head">
+      <strong>Network</strong>
+      <div class="network-status small muted" id="network-status-text">Checking...</div>
+    </div>
+    <div class="network-actions">
+      <button id="switch-ap-btn" data-mode="ap">Switch to AP</button>
+      <button id="switch-wifi-btn" data-mode="wifi">Switch to WiFi</button>
     </div>
   </div>
 
