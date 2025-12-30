@@ -4,9 +4,9 @@
 
 // ----------------------- Globals -----------------------
 const POLL_EVERY_MS = 2000;
-let   WINDOW_SEC    = 30;                 // metrics window
-const WINDOW_MS     = () => WINDOW_SEC * 1000;
-const MAX_POINTS    = 5000;               // charts safety cap
+let WINDOW_SEC = 30;                 // metrics window
+const WINDOW_MS = () => WINDOW_SEC * 1000;
+const MAX_POINTS = 5000;               // charts safety cap
 
 // ----------------------- Utils -------------------------
 async function api(path, opts = {}) {
@@ -15,8 +15,8 @@ async function api(path, opts = {}) {
   try { return JSON.parse(txt) } catch { return { text: txt, status: r.status } }
 }
 function setDonut(el, pctFree) {
-  const clamped = Math.max(0, Math.min(100, pctFree||0));
-  el.setAttribute("stroke-dasharray", `${clamped} ${100-clamped}`);
+  const clamped = Math.max(0, Math.min(100, pctFree || 0));
+  el.setAttribute("stroke-dasharray", `${clamped} ${100 - clamped}`);
 }
 
 // ======================================================
@@ -31,7 +31,7 @@ const ThemeController = (() => {
     if (icon) icon.textContent = (mode === 'light') ? '🌞' : '🌙';
     // force charts to refresh with the new grid color
     if (typeof redrawAllSparklines === 'function') redrawAllSparklines();
-}
+  }
 
   function load() {
     const stored = localStorage.getItem(KEY);
@@ -60,7 +60,7 @@ const ThemeController = (() => {
 // Refresh button
 // ======================================================
 const RefreshController = (() => {
-  function flash(msg, ok=true) {
+  function flash(msg, ok = true) {
     // lightweight toast near the button
     let el = document.getElementById('refresh-toast');
     if (!el) {
@@ -118,7 +118,7 @@ const RefreshController = (() => {
       // Optional reload fallback:
       // location.reload();
     } finally {
-      await anim?.finished?.catch(() => {});
+      await anim?.finished?.catch(() => { });
       btn.disabled = false;
     }
   }
@@ -164,45 +164,45 @@ const PanelController = (() => {
 // ======================================================
 // Status / Metrics / Charts
 // ======================================================
-function setStatus(running, sinceTs){
+function setStatus(running, sinceTs) {
   const el = document.getElementById('status');
   const cls = running ? 'ok' : 'warn';
   el.className = 'status ' + cls;
-  if(running){
-    const since = sinceTs ? new Date(sinceTs*1000).toLocaleTimeString() : '—';
-    el.innerHTML = '🟢 Recording <span class="mono">(since '+since+')</span>';
+  if (running) {
+    const since = sinceTs ? new Date(sinceTs * 1000).toLocaleTimeString() : '—';
+    el.innerHTML = '🟢 Recording <span class="mono">(since ' + since + ')</span>';
   } else {
     el.innerHTML = '🔴 Not recording';
   }
 }
 
-async function refreshStatus(){
+async function refreshStatus() {
   const s = await api('/status');
   setStatus(s.running, s.started_ts);
   document.getElementById('save_dir').textContent = s.save_dir ?? '—';
   document.getElementById('disk_path').textContent = s.save_dir ?? '—';
 }
 
-async function startCapture(){
+async function startCapture() {
   const res = await api('/start');
   document.getElementById('log').textContent = JSON.stringify(res, null, 2);
   refreshStatus();
 }
 
-async function stopCapture(){
+async function stopCapture() {
   const res = await api('/stop');
   document.getElementById('log').textContent = JSON.stringify(res, null, 2);
   setTimeout(refreshStatus, 300);
 }
 
 // -------- Still capture (compact UI feedback) --------
-async function captureStill(){
-  const logEl   = document.getElementById('log');
-  const timeEl  = document.getElementById('last_image_time');
+async function captureStill() {
+  const logEl = document.getElementById('log');
+  const timeEl = document.getElementById('last_image_time');
   const badgeEl = document.getElementById('img_captured_badge');
 
   try {
-    const res  = await fetch('/capture_image', { method: 'POST' });
+    const res = await fetch('/capture_image', { method: 'POST' });
     const data = await res.json();
 
     if (!res.ok || !data.ok) {
@@ -229,7 +229,7 @@ async function captureStill(){
 }
 
 // -------- Charts buffers --------
-const buf = { cur:[], vol:[], pow:[], cpu:[], ram:[], mhz:[] };
+const buf = { cur: [], vol: [], pow: [], cpu: [], ram: [], mhz: [] };
 
 function prune(a) {
   const cutoff = performance.now() - WINDOW_MS();
@@ -243,9 +243,9 @@ function push(bufname, v, tMs) {
   prune(a);
 }
 
-function drawSparkline(canvas, series, {min=null, max=null} = {}) {
+function drawSparkline(canvas, series, { min = null, max = null } = {}) {
   const ctx = canvas.getContext('2d');
-  const w = canvas.width  = canvas.clientWidth  * devicePixelRatio;
+  const w = canvas.width = canvas.clientWidth * devicePixelRatio;
   const h = canvas.height = canvas.clientHeight * devicePixelRatio;
   ctx.clearRect(0, 0, w, h);
   if (!series.length) return;
@@ -270,7 +270,7 @@ function drawSparkline(canvas, series, {min=null, max=null} = {}) {
   ctx.globalAlpha = 0.25;
   ctx.strokeStyle = gridColor;
   ctx.beginPath();
-  const midY = h - pad - (((lo+hi)/2 - lo) / (hi - lo)) * (h - 2*pad);
+  const midY = h - pad - (((lo + hi) / 2 - lo) / (hi - lo)) * (h - 2 * pad);
   ctx.moveTo(pad, midY);
   ctx.lineTo(w - pad, midY);
   ctx.stroke();
@@ -282,24 +282,24 @@ function drawSparkline(canvas, series, {min=null, max=null} = {}) {
   ctx.beginPath();
   for (let i = 0; i < series.length; i++) {
     const [t, v] = series[i];
-    const x = pad + ((t - t0) / dt) * (w - 2*pad);
-    const y = h - pad - ((v - lo) / (hi - lo)) * (h - 2*pad);
+    const x = pad + ((t - t0) / dt) * (w - 2 * pad);
+    const y = h - pad - ((v - lo) / (hi - lo)) * (h - 2 * pad);
     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();
 }
 
 function redrawAllSparklines() {
-  drawSparkline(document.getElementById('cur'), buf.cur, {min:0});
+  drawSparkline(document.getElementById('cur'), buf.cur, { min: 0 });
   drawSparkline(document.getElementById('vol'), buf.vol);
   drawSparkline(document.getElementById('pow'), buf.vol);
-  drawSparkline(document.getElementById('cpu'), buf.cpu, {min:0, max:100});
-  drawSparkline(document.getElementById('ram'), buf.ram, {min:0, max:100});
+  drawSparkline(document.getElementById('cpu'), buf.cpu, { min: 0, max: 100 });
+  drawSparkline(document.getElementById('ram'), buf.ram, { min: 0, max: 100 });
   drawSparkline(document.getElementById('mhz'), buf.mhz);
 }
 
 
-async function tick(){
+async function tick() {
   const m = await api('/metrics');
   const now = performance.now();
 
@@ -310,10 +310,10 @@ async function tick(){
 
   push('cur', m.sensors.current_a, now);
   push('vol', m.sensors.voltage_v, now);
-  push('pow', m.sensors.power_w,   now);
-  push('cpu', m.cpu.util_pct,      now);
-  push('ram', m.ram.used_pct,      now);
-  push('mhz', m.cpu.freq_mhz,      now);
+  push('pow', m.sensors.power_w, now);
+  push('cpu', m.cpu.util_pct, now);
+  push('ram', m.ram.used_pct, now);
+  push('mhz', m.cpu.freq_mhz, now);
 
   document.getElementById('cur_now').textContent = m.sensors.current_a ?? '—';
   document.getElementById('vol_now').textContent = m.sensors.voltage_v ?? '—';
@@ -322,11 +322,11 @@ async function tick(){
   document.getElementById('ram_now').textContent = m.ram.used_pct ?? '—';
   document.getElementById('mhz_now').textContent = m.cpu.freq_mhz ?? '—';
 
-  drawSparkline(document.getElementById('cur'), buf.cur, {min:0});
+  drawSparkline(document.getElementById('cur'), buf.cur, { min: 0 });
   drawSparkline(document.getElementById('vol'), buf.vol);
   drawSparkline(document.getElementById('pow'), buf.pow);
-  drawSparkline(document.getElementById('cpu'), buf.cpu, {min:0, max:100});
-  drawSparkline(document.getElementById('ram'), buf.ram, {min:0, max:100});
+  drawSparkline(document.getElementById('cpu'), buf.cpu, { min: 0, max: 100 });
+  drawSparkline(document.getElementById('ram'), buf.ram, { min: 0, max: 100 });
   drawSparkline(document.getElementById('mhz'), buf.mhz);
 }
 
@@ -339,11 +339,11 @@ function setupWindowChips() {
       c.classList.toggle('active', Number(c.dataset.win) === WINDOW_SEC);
     });
     Object.values(buf).forEach(prune);
-    drawSparkline(document.getElementById('cur'), buf.cur, {min:0});
+    drawSparkline(document.getElementById('cur'), buf.cur, { min: 0 });
     drawSparkline(document.getElementById('vol'), buf.vol);
     drawSparkline(document.getElementById('pow'), buf.pow);
-    drawSparkline(document.getElementById('cpu'), buf.cpu, {min:0, max:100});
-    drawSparkline(document.getElementById('ram'), buf.ram, {min:0, max:100});
+    drawSparkline(document.getElementById('cpu'), buf.cpu, { min: 0, max: 100 });
+    drawSparkline(document.getElementById('ram'), buf.ram, { min: 0, max: 100 });
     drawSparkline(document.getElementById('mhz'), buf.mhz);
   }
   allChips.forEach(chip => chip.addEventListener('click', () => activate(chip.dataset.win)));
@@ -445,14 +445,14 @@ function setupWindowChips() {
   const saveDirReset = document.getElementById('cfg-save-dir-reset');
   const ledToggle = document.getElementById('cfg-led');
   const modeNote = document.getElementById('cfg-mode-note');
-  const ledNote  = document.getElementById('cfg-led-note');
+  const ledNote = document.getElementById('cfg-led-note');
   const imgResInput = document.getElementById('cfg-img-res');
   const imgResReset = document.getElementById('cfg-img-res-reset');
   const vidResInput = document.getElementById('cfg-vid-res');
   const vidFpsInput = document.getElementById('cfg-vid-fps');
-  const vidReset    = document.getElementById('cfg-vid-reset');
-  const logHoursInput  = document.getElementById('cfg-log-hours');
-  const logHoursReset  = document.getElementById('cfg-log-hours-default');
+  const vidReset = document.getElementById('cfg-vid-reset');
+  const logHoursInput = document.getElementById('cfg-log-hours');
+  const logHoursReset = document.getElementById('cfg-log-hours-default');
 
   function isOpen() { return drawer.classList.contains('open'); }
   function openDrawer() {
@@ -471,7 +471,7 @@ function setupWindowChips() {
   PanelController.register({ config: { close: closeDrawer } });
 
   async function loadConfig() {
-    const cfg = await (await fetch('/config', {cache:'no-store'})).json();
+    const cfg = await (await fetch('/config', { cache: 'no-store' })).json();
 
     saveDirInput.value = cfg.save_dir_current || '';
     modeNote.textContent = cfg.development_mode ? 'DEV mode' : 'PROD';
@@ -489,11 +489,11 @@ function setupWindowChips() {
     vidFpsInput.dataset.default = (cfg.video_fps_default ?? 25);
 
     // Also reflect save dir elsewhere in UI
-    document.getElementById('save_dir').textContent  = cfg.save_dir_current ?? '—';
+    document.getElementById('save_dir').textContent = cfg.save_dir_current ?? '—';
     document.getElementById('disk_path').textContent = cfg.save_dir_current ?? '—';
 
     try {
-      const lr = await (await fetch('/log/config', {cache:'no-store'})).json();
+      const lr = await (await fetch('/log/config', { cache: 'no-store' })).json();
       if (lr && lr.ok) {
         logHoursInput.value = lr.reset_hours ?? 24;
         logHoursInput.dataset.default = 24;
@@ -520,7 +520,7 @@ function setupWindowChips() {
       };
       await fetch('/config', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       refreshStatus();
@@ -534,7 +534,7 @@ function setupWindowChips() {
       const hrs = Math.max(1, Math.min(parseInt(logHoursInput.value || '24', 10), 720));
       await fetch('/log/config', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reset_hours: hrs })
       });
     }, 300);
@@ -542,7 +542,7 @@ function setupWindowChips() {
 
 
   async function restoreDefaultPath() {
-    const r = await fetch('/config', {cache:'no-store'});
+    const r = await fetch('/config', { cache: 'no-store' });
     const cfg = await r.json();
     saveDirInput.value = cfg.save_dir_default || './outputs';
     scheduleApplyConfig();
@@ -561,7 +561,7 @@ function setupWindowChips() {
   async function applyLed() {
     await fetch('/config', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ led_on: !!ledToggle.checked })
     });
   }
@@ -573,9 +573,9 @@ function setupWindowChips() {
 
   // Auto-apply on change/typing
   saveDirInput.addEventListener('input', scheduleApplyConfig);
-  imgResInput .addEventListener('input', scheduleApplyConfig);
-  vidResInput .addEventListener('input', scheduleApplyConfig);
-  vidFpsInput .addEventListener('input', scheduleApplyConfig);
+  imgResInput.addEventListener('input', scheduleApplyConfig);
+  vidResInput.addEventListener('input', scheduleApplyConfig);
+  vidFpsInput.addEventListener('input', scheduleApplyConfig);
 
   // Reset buttons
   saveDirReset.addEventListener('click', restoreDefaultPath);
@@ -606,20 +606,20 @@ function setupWindowChips() {
   const pop = document.getElementById('power-pop');
 
   // Modal bits
-  const modal   = document.getElementById('confirm-modal');
+  const modal = document.getElementById('confirm-modal');
   const titleEl = document.getElementById('confirm-title');
   // BUGFIX: match your HTML id="confirm-message"
-  const msgEl   = document.getElementById('confirm-message');
+  const msgEl = document.getElementById('confirm-message');
   const cancelBtn = document.getElementById('confirm-cancel');
-  const okBtn     = document.getElementById('confirm-ok');
+  const okBtn = document.getElementById('confirm-ok');
 
   // Optional direct references if you gave the buttons IDs:
-  const rebootBtn   = document.querySelector('#power-pop [data-action="reboot"]');
+  const rebootBtn = document.querySelector('#power-pop [data-action="reboot"]');
   const shutdownBtn = document.querySelector('#power-pop [data-action="shutdown"]');
 
   let pendingAction = null;
 
-  function isOpen(){ return pop && pop.classList.contains('open'); }
+  function isOpen() { return pop && pop.classList.contains('open'); }
   function openPop() {
     if (!pop) return console.error('[power] #power-pop not found');
     PanelController.closeAll('power');
@@ -641,7 +641,7 @@ function setupWindowChips() {
     pendingAction = action;
     const label = action === 'reboot' ? 'Restart' : 'Shut Down';
     titleEl && (titleEl.textContent = `${label} Pi`);
-    msgEl   && (msgEl.textContent   = `Are you sure you want to ${label.toLowerCase()} the Raspberry Pi?`);
+    msgEl && (msgEl.textContent = `Are you sure you want to ${label.toLowerCase()} the Raspberry Pi?`);
     modal.classList.add('open');
     modal.setAttribute('aria-hidden', 'false');
   }
@@ -668,9 +668,8 @@ function setupWindowChips() {
       const data = await r.json();
       if (!r.ok || !data.ok) {
         alert('Failed: ' + (data.error || data.message || r.statusText));
-      } else {
-        alert(data.message || 'Command sent.');
       }
+
     } catch (err) {
       alert('Error: ' + err);
     }
@@ -713,7 +712,7 @@ function setupWindowChips() {
   }
 
   // 2) Optional direct bindings too (in case delegation was removed/changed)
-  rebootBtn   && rebootBtn.addEventListener('click', () => showModal('reboot'));
+  rebootBtn && rebootBtn.addEventListener('click', () => showModal('reboot'));
   shutdownBtn && shutdownBtn.addEventListener('click', () => showModal('shutdown'));
 })();
 
@@ -724,10 +723,10 @@ function setupWindowChips() {
 // + 📸 Capture Image button placed UNDER the preview image and ABOVE the sliders
 // ======================================================
 (function () {
-  const btn  = document.getElementById('preview-toggle');
-  const pop  = document.getElementById('preview-pop');
+  const btn = document.getElementById('preview-toggle');
+  const pop = document.getElementById('preview-pop');
   const feed = document.getElementById('preview-feed');
-  const cvs  = document.getElementById('preview-canvas');
+  const cvs = document.getElementById('preview-canvas');
   const note = document.getElementById('preview-note');
 
   let devAnim = null;
@@ -738,7 +737,7 @@ function setupWindowChips() {
   const ui = {};
 
   // ---------- Utilities ----------
-  function isOpen(){ return pop && pop.classList.contains('open'); }
+  function isOpen() { return pop && pop.classList.contains('open'); }
   function openPop() {
     PanelController.closeAll('preview');
     pop.classList.add('open');
@@ -760,15 +759,15 @@ function setupWindowChips() {
     const ctx = cvs.getContext('2d');
     const W = cvs.width, H = cvs.height;
     let t = 0;
-    (function loop(){
+    (function loop() {
       ctx.fillStyle = '#0b0f16';
-      ctx.fillRect(0,0,W,H);
-      const cx = W/2 + Math.cos(t/20)*W/4;
-      const cy = H/2 + Math.sin(t/30)*H/4;
-      const r  = 40 + 10*Math.sin(t/15);
-      ctx.beginPath(); ctx.arc(cx, cy, r+8, 0, Math.PI*2);
+      ctx.fillRect(0, 0, W, H);
+      const cx = W / 2 + Math.cos(t / 20) * W / 4;
+      const cy = H / 2 + Math.sin(t / 30) * H / 4;
+      const r = 40 + 10 * Math.sin(t / 15);
+      ctx.beginPath(); ctx.arc(cx, cy, r + 8, 0, Math.PI * 2);
       ctx.strokeStyle = '#2f81f7'; ctx.lineWidth = 6; ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fillStyle = '#1e784d'; ctx.fill();
       ctx.fillStyle = '#9da7b3'; ctx.font = '14px system-ui';
       ctx.fillText('DEV PREVIEW (no camera)', 12, H - 12);
@@ -779,7 +778,7 @@ function setupWindowChips() {
   async function resolveMode() {
     if (isDevMode !== null) return isDevMode;
     try {
-      const cfg = await (await fetch('/config', {cache:'no-store'})).json();
+      const cfg = await (await fetch('/config', { cache: 'no-store' })).json();
       isDevMode = !!cfg.development_mode;
     } catch {
       isDevMode = true; // safest fallback
@@ -788,7 +787,7 @@ function setupWindowChips() {
   }
 
   // ---------- Controls UI ----------
-  function ensureControlsUI(){
+  function ensureControlsUI() {
     if (uiBuilt || !pop) return;
     uiBuilt = true;
 
@@ -824,7 +823,7 @@ function setupWindowChips() {
     panel.style.gap = '8px';
     panel.style.marginTop = '6px';
 
-    function mkRow(label, input, rightEl=null){
+    function mkRow(label, input, rightEl = null) {
       const wrap = document.createElement('div');
       wrap.className = 'tile';
       wrap.style.display = 'flex';
@@ -843,7 +842,7 @@ function setupWindowChips() {
       return wrap;
     }
 
-    function mkRange(id, min, max, step, initVal, suffix=''){
+    function mkRange(id, min, max, step, initVal, suffix = '') {
       const box = document.createElement('div');
       box.style.display = 'flex';
       box.style.alignItems = 'center';
@@ -871,7 +870,7 @@ function setupWindowChips() {
       return { box, inp, val };
     }
 
-    function mkCheck(id, text='Enabled'){
+    function mkCheck(id, text = 'Enabled') {
       const line = document.createElement('label');
       line.className = 'small';
       line.style.display = 'flex';
@@ -886,20 +885,20 @@ function setupWindowChips() {
     }
 
     // ---- Controls ----
-    const ae  = mkCheck('pv-ae', 'Enabled');                  ui.ae = ae.inp;
+    const ae = mkCheck('pv-ae', 'Enabled'); ui.ae = ae.inp;
 
     // ExposureTime slider: 100–200000 μs (0.1–200 ms), step 100
-    const et  = mkRange('pv-exposure', 100, 200000, 100, 10000, ' μs'); ui.et = et.inp;
+    const et = mkRange('pv-exposure', 100, 200000, 100, 10000, ' μs'); ui.et = et.inp;
 
     // Analogue/Digital Gain sliders: 1.0–16.0, step 0.1
-    const ag  = mkRange('pv-analoggain', 1.0, 16.0, 0.1, 1.0, '×'); ui.ag = ag.inp;
-    const dg  = mkRange('pv-digitalgain', 1.0, 16.0, 0.1, 1.0, '×'); ui.dg = dg.inp;
+    const ag = mkRange('pv-analoggain', 1.0, 16.0, 0.1, 1.0, '×'); ui.ag = ag.inp;
+    const dg = mkRange('pv-digitalgain', 1.0, 16.0, 0.1, 1.0, '×'); ui.dg = dg.inp;
 
     // Tone sliders
     const bri = mkRange('pv-brightness', -1.0, 1.0, 0.05, 0.0); ui.bri = bri.inp;
-    const con = mkRange('pv-contrast',    0.0, 2.0, 0.05, 1.0); ui.con = con.inp;
-    const sat = mkRange('pv-saturation',  0.0, 2.0, 0.05, 1.0); ui.sat = sat.inp;
-    const sha = mkRange('pv-sharpness',   0.0, 2.0, 0.05, 1.0); ui.sha = sha.inp;
+    const con = mkRange('pv-contrast', 0.0, 2.0, 0.05, 1.0); ui.con = con.inp;
+    const sat = mkRange('pv-saturation', 0.0, 2.0, 0.05, 1.0); ui.sat = sat.inp;
+    const sha = mkRange('pv-sharpness', 0.0, 2.0, 0.05, 1.0); ui.sha = sha.inp;
 
     // Reset button (top-right of the AE tile)
     const resetBtn = document.createElement('button');
@@ -911,17 +910,17 @@ function setupWindowChips() {
     panel.appendChild(mkRow('Auto Exposure (AeEnable)', ae.line, resetBtn));
     panel.appendChild(mkRow('Exposure Time (μs)', et.box));
     panel.appendChild(mkRow('Analogue Gain (×)', ag.box));
-    panel.appendChild(mkRow('Digital Gain (×)',  dg.box));
+    panel.appendChild(mkRow('Digital Gain (×)', dg.box));
     panel.appendChild(mkRow('Brightness (−1..+1)', bri.box));
-    panel.appendChild(mkRow('Contrast (0..2)',     con.box));
-    panel.appendChild(mkRow('Saturation (0..2)',   sat.box));
-    panel.appendChild(mkRow('Sharpness (0..2)',    sha.box));
+    panel.appendChild(mkRow('Contrast (0..2)', con.box));
+    panel.appendChild(mkRow('Saturation (0..2)', sat.box));
+    panel.appendChild(mkRow('Sharpness (0..2)', sha.box));
 
     // Insert the sliders panel **after the toolbar**
     toolbar.insertAdjacentElement('afterend', panel);
 
     // Disable manual fields when AE is on
-    function reflectAE(){
+    function reflectAE() {
       const on = !!ui.ae.checked;
       ui.et.disabled = on;
       ui.ag.disabled = on;
@@ -931,40 +930,40 @@ function setupWindowChips() {
 
     // Debounced POST sender
     let timer = null;
-    function send(partial){
+    function send(partial) {
       if (timer) clearTimeout(timer);
       timer = setTimeout(async () => {
-        try{
+        try {
           await fetch('/preview_controls', {
             method: 'POST',
-            headers: {'Content-Type':'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(partial)
           });
-        } catch(e){}
+        } catch (e) { }
       }, 120);
     }
 
     // Wire control events
-    ui.ae.addEventListener('change', ()=> { reflectAE(); send({ AeEnable: ui.ae.checked }); });
-    ui.et.addEventListener('input',  ()=> send({ ExposureTime: Number(ui.et.value) }));
-    ui.ag.addEventListener('input',  ()=> send({ AnalogueGain: Number(ui.ag.value) }));
-    ui.dg.addEventListener('input',  ()=> send({ DigitalGain:  Number(ui.dg.value) }));
+    ui.ae.addEventListener('change', () => { reflectAE(); send({ AeEnable: ui.ae.checked }); });
+    ui.et.addEventListener('input', () => send({ ExposureTime: Number(ui.et.value) }));
+    ui.ag.addEventListener('input', () => send({ AnalogueGain: Number(ui.ag.value) }));
+    ui.dg.addEventListener('input', () => send({ DigitalGain: Number(ui.dg.value) }));
 
-    ui.bri.addEventListener('input', ()=> send({ Brightness: Number(ui.bri.value) }));
-    ui.con.addEventListener('input', ()=> send({ Contrast:   Number(ui.con.value) }));
-    ui.sat.addEventListener('input', ()=> send({ Saturation: Number(ui.sat.value) }));
-    ui.sha.addEventListener('input', ()=> send({ Sharpness:  Number(ui.sha.value) }));
+    ui.bri.addEventListener('input', () => send({ Brightness: Number(ui.bri.value) }));
+    ui.con.addEventListener('input', () => send({ Contrast: Number(ui.con.value) }));
+    ui.sat.addEventListener('input', () => send({ Saturation: Number(ui.sat.value) }));
+    ui.sha.addEventListener('input', () => send({ Sharpness: Number(ui.sha.value) }));
 
     // Reset handler
     resetBtn.addEventListener('click', async () => {
-      try{
+      try {
         await fetch('/preview_controls', {
           method: 'POST',
-          headers: {'Content-Type':'application/json'},
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ reset: true })
         });
         await loadPreviewControls(); // refresh UI from server defaults
-      } catch(e){}
+      } catch (e) { }
     });
 
     // 📸 Capture image handler
@@ -973,7 +972,7 @@ function setupWindowChips() {
       const prevText = capBtn.textContent;
       capBtn.textContent = 'Capturing…';
       capMsg.textContent = '';
-      try{
+      try {
         const r = await fetch('/capture_image', { method: 'POST' });
         const data = await r.json();
         if (!r.ok || !data.ok) {
@@ -991,7 +990,7 @@ function setupWindowChips() {
             document.getElementById('files-toggle')?.dispatchEvent(evt);
           }
         }
-      } catch(e){
+      } catch (e) {
         capMsg.textContent = 'Error capturing';
         capMsg.style.color = '#f85149';
       } finally {
@@ -1002,8 +1001,8 @@ function setupWindowChips() {
     });
   }
 
-  async function loadPreviewControls(){
-    try{
+  async function loadPreviewControls() {
+    try {
       const res = await fetch('/preview_controls', { cache: 'no-store' });
       const data = await res.json();
       if (!data || !data.ok) return;
@@ -1013,8 +1012,8 @@ function setupWindowChips() {
       if (typeof c.AeEnable === 'boolean') ui.ae.checked = c.AeEnable;
 
       if (c.ExposureTime != null) ui.et.value = String(c.ExposureTime);
-      if (c.AnalogueGain  != null) ui.ag.value = String(c.AnalogueGain);
-      if (c.DigitalGain   != null) ui.dg.value = String(c.DigitalGain);
+      if (c.AnalogueGain != null) ui.ag.value = String(c.AnalogueGain);
+      if (c.DigitalGain != null) ui.dg.value = String(c.DigitalGain);
 
       ui.bri.value = (c.Brightness ?? 0.0);
       ui.con.value = Math.min(2, (c.Contrast ?? 1.0));
@@ -1032,11 +1031,11 @@ function setupWindowChips() {
 
       ui.reflectAE && ui.reflectAE();
 
-      if (note){
+      if (note) {
         if (data.dev) note.textContent = 'Live MJPEG stream (DEV: camera controls simulated).';
         else note.textContent = 'Live MJPEG stream — changes below apply immediately.';
       }
-    } catch(e){}
+    } catch (e) { }
   }
 
   async function startPreview() {
@@ -1045,7 +1044,7 @@ function setupWindowChips() {
 
     if (dev) {
       if (feed) feed.style.display = 'none';
-      if (cvs)  cvs.style.display  = '';
+      if (cvs) cvs.style.display = '';
       startDevAnim();
     } else {
       if (cvs) { cvs.style.display = 'none'; if (devAnim) { cancelAnimationFrame(devAnim); devAnim = null; } }
@@ -1079,15 +1078,15 @@ function setupWindowChips() {
 // Adds: Delete + Download buttons per file
 // ======================================================
 (function () {
-  const btn   = document.getElementById('files-toggle');
-  const pop   = document.getElementById('files-pop');
-  const list  = document.getElementById('files-list');
-  const foot  = document.getElementById('files-foot');
-  const bcEl  = document.getElementById('files-bc');
+  const btn = document.getElementById('files-toggle');
+  const pop = document.getElementById('files-pop');
+  const list = document.getElementById('files-list');
+  const foot = document.getElementById('files-foot');
+  const bcEl = document.getElementById('files-bc');
 
   let currentPath = ""; // relative to CURRENT_SAVE_DIR
 
-  function isOpen(){ return pop && pop.classList.contains('open'); }
+  function isOpen() { return pop && pop.classList.contains('open'); }
   function openPop() {
     PanelController.closeAll('files');
     pop.classList.add('open');
@@ -1102,15 +1101,15 @@ function setupWindowChips() {
 
   PanelController.register({ files: { close: closePop } });
 
-  function fmtBytes(n){
+  function fmtBytes(n) {
     if (n == null || n < 0) return '';
-    const u = ['B','KB','MB','GB','TB'];
+    const u = ['B', 'KB', 'MB', 'GB', 'TB'];
     let i = 0, v = n;
-    while (v >= 1024 && i < u.length-1) { v /= 1024; i++; }
+    while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
     return v.toFixed(v >= 10 ? 0 : 1) + ' ' + u[i];
   }
-  function fmtTime(ts){
-    try { return new Date(ts*1000).toLocaleString(); }
+  function fmtTime(ts) {
+    try { return new Date(ts * 1000).toLocaleString(); }
     catch { return ''; }
   }
 
@@ -1168,10 +1167,10 @@ function setupWindowChips() {
   }
 
   // ---- NEW: Delete helpers (soft delete by default) ----
-  async function deletePath(pathRel, permanent=false) {
+  async function deletePath(pathRel, permanent = false) {
     const res = await fetch('/delete', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: pathRel, permanent })
     });
     const data = await res.json();
@@ -1185,13 +1184,13 @@ function setupWindowChips() {
     if (!pathRel) return;
     const modal = document.getElementById('confirm-modal');
     const titleEl = document.getElementById('confirm-title');
-    const msgEl   = document.getElementById('confirm-message');
-    const okBtn   = document.getElementById('confirm-ok');
-    const cancel  = document.getElementById('confirm-cancel');
+    const msgEl = document.getElementById('confirm-message');
+    const okBtn = document.getElementById('confirm-ok');
+    const cancel = document.getElementById('confirm-cancel');
 
     const label = (type === 'dir') ? 'folder' : 'file';
     titleEl.textContent = `Delete ${label}?`;
-    msgEl.textContent   = `Are you sure you want to delete “${pathRel.split('/').pop()}”?`;
+    msgEl.textContent = `Are you sure you want to delete “${pathRel.split('/').pop()}”?`;
 
     // open modal
     modal.classList.add('open');
@@ -1210,30 +1209,30 @@ function setupWindowChips() {
         cleanup();
       }
     };
-    function cleanup(){
+    function cleanup() {
       modal.classList.remove('open');
       modal.setAttribute('aria-hidden', 'true');
       okBtn.removeEventListener('click', onOk);
       cancel.removeEventListener('click', onCancel);
       document.removeEventListener('keydown', onEsc);
     }
-    function onEsc(e){ if (e.key === 'Escape') cleanup(); }
+    function onEsc(e) { if (e.key === 'Escape') cleanup(); }
 
     okBtn.addEventListener('click', onOk);
     cancel.addEventListener('click', onCancel);
     document.addEventListener('keydown', onEsc);
   }
 
-  function renderList(data){
+  function renderList(data) {
     currentPath = data.path || "";
 
     // Breadcrumbs
     const parts = currentPath.split('/').filter(Boolean);
     const crumbs = ['<span class="crumb" data-path="">root</span>'];
     let acc = "";
-    for (let i=0;i<parts.length;i++){
+    for (let i = 0; i < parts.length; i++) {
       acc += (i ? "/" : "") + parts[i];
-      crumbs.push('<span class="sep">/</span><span class="crumb" data-path="'+acc+'">'+parts[i]+'</span>');
+      crumbs.push('<span class="sep">/</span><span class="crumb" data-path="' + acc + '">' + parts[i] + '</span>');
     }
     bcEl.innerHTML = crumbs.join('');
 
@@ -1248,7 +1247,7 @@ function setupWindowChips() {
 
     list.innerHTML = '';
 
-    if (!filtered.length){
+    if (!filtered.length) {
       const empty = document.createElement('div');
       empty.className = 'file-row';
       empty.innerHTML = '<div class="file-name muted">No items</div>';
@@ -1318,13 +1317,13 @@ function setupWindowChips() {
     const countDirs = entries.filter(e => e.type === 'dir').length;
     const countFiles = entries.filter(e => e.type === 'file').length;
     foot.textContent = atRoot
-      ? `${countDirs} director${countDirs===1?'y':'ies'}`
-      : `${countDirs} director${countDirs===1?'y':'ies'} • ${countFiles} file${countFiles===1?'':'s'}`;
+      ? `${countDirs} director${countDirs === 1 ? 'y' : 'ies'}`
+      : `${countDirs} director${countDirs === 1 ? 'y' : 'ies'} • ${countFiles} file${countFiles === 1 ? '' : 's'}`;
   }
 
-  async function loadPath(pathRel){
-    try{
-      const r = await fetch(`/files?path=${encodeURIComponent(pathRel||'')}`, {cache:'no-store'});
+  async function loadPath(pathRel) {
+    try {
+      const r = await fetch(`/files?path=${encodeURIComponent(pathRel || '')}`, { cache: 'no-store' });
       const data = await r.json();
       if (!r.ok || !data.ok) {
         list.innerHTML = `<div class="file-row"><div class="file-name muted">Error: ${data.error || r.statusText}</div></div>`;
@@ -1332,7 +1331,7 @@ function setupWindowChips() {
         return;
       }
       renderList(data);
-    }catch(e){
+    } catch (e) {
       list.innerHTML = `<div class="file-row"><div class="file-name muted">Error: ${String(e)}</div></div>`;
       foot.textContent = '—';
     }
@@ -1371,22 +1370,22 @@ function setupWindowChips() {
   });
 })();
 
-function isImageName(name){
+function isImageName(name) {
   const ext = (name.split('.').pop() || '').toLowerCase();
-  return ['jpg','jpeg','png','webp','gif','bmp','tif','tiff'].includes(ext);
+  return ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tif', 'tiff'].includes(ext);
 }
-function isVideoName(name){
+function isVideoName(name) {
   const ext = (name.split('.').pop() || '').toLowerCase();
-  return ['mp4','webm','mov','m4v','avi','mkv'].includes(ext);
+  return ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv'].includes(ext);
 }
 
-function openViewer(filePath, fileName){
+function openViewer(filePath, fileName) {
   const modal = document.getElementById('viewer-modal');
   const title = document.getElementById('viewer-title');
   const close = document.getElementById('viewer-close');
-  const img   = document.getElementById('viewer-img');
-  const vid   = document.getElementById('viewer-video');
-  const note  = document.getElementById('viewer-note');
+  const img = document.getElementById('viewer-img');
+  const vid = document.getElementById('viewer-video');
+  const note = document.getElementById('viewer-note');
 
   if (!modal || !title || !img || !vid) return;
 
@@ -1411,18 +1410,18 @@ function openViewer(filePath, fileName){
   }
 
   modal.classList.add('open');
-  modal.setAttribute('aria-hidden','false');
+  modal.setAttribute('aria-hidden', 'false');
 
-  function closeViewer(){
+  function closeViewer() {
     modal.classList.remove('open');
-    modal.setAttribute('aria-hidden','true');
+    modal.setAttribute('aria-hidden', 'true');
     img.removeAttribute('src');
     vid.pause();
     vid.removeAttribute('src');
     vid.load();
     document.removeEventListener('keydown', escClose);
   }
-  function escClose(e){ if (e.key === 'Escape') closeViewer(); }
+  function escClose(e) { if (e.key === 'Escape') closeViewer(); }
 
   close.onclick = closeViewer;
   modal.addEventListener('click', (e) => {
@@ -1435,13 +1434,13 @@ function openViewer(filePath, fileName){
 // LOGGER (popout, read-only)
 // ======================================================
 (function () {
-  const btn   = document.getElementById('log-toggle');
-  const pop   = document.getElementById('log-pop');
-  const body  = document.getElementById('log-body');
-  const meta  = document.getElementById('log-meta');
+  const btn = document.getElementById('log-toggle');
+  const pop = document.getElementById('log-pop');
+  const body = document.getElementById('log-body');
+  const meta = document.getElementById('log-meta');
   const refreshBtn = document.getElementById('log-refresh');
 
-  function isOpen(){ return pop && pop.classList.contains('open'); }
+  function isOpen() { return pop && pop.classList.contains('open'); }
   function openPop() {
     PanelController.closeAll('log');
     pop.classList.add('open');
@@ -1456,8 +1455,8 @@ function openViewer(filePath, fileName){
 
   PanelController.register({ log: { close: closePop } });
 
-  async function loadLog(){
-    try{
+  async function loadLog() {
+    try {
       const r = await fetch('/log', { cache: 'no-store' });
       const data = await r.json();
       if (!r.ok || !data.ok) {
@@ -1466,11 +1465,11 @@ function openViewer(filePath, fileName){
         return;
       }
       body.textContent = data.text || '[empty]';
-      const started = data.started_ts ? new Date(data.started_ts*1000).toLocaleString() : '—';
-      const sizeKB  = Math.round(((data.size || 0) / 1024) * 10) / 10;
+      const started = data.started_ts ? new Date(data.started_ts * 1000).toLocaleString() : '—';
+      const sizeKB = Math.round(((data.size || 0) / 1024) * 10) / 10;
       meta.textContent = `File: ${data.path.split(/[\\/]/).pop() || '—'} • Since: ${started} • Reset: ${data.reset_hours}h • Size: ${sizeKB} KB`;
       body.scrollTop = body.scrollHeight;
-    } catch(e){
+    } catch (e) {
       body.textContent = 'Error: ' + String(e);
       meta.textContent = '—';
     }
@@ -1495,7 +1494,7 @@ document.addEventListener('DOMContentLoaded', () => {
   RefreshController.init();
 });
 
-async function boot(){
+async function boot() {
   await refreshStatus();
   setInterval(refreshStatus, 2000);
   setupWindowChips();
@@ -1506,5 +1505,5 @@ boot();
 
 // Expose functions for HTML buttons
 window.startCapture = startCapture;
-window.stopCapture  = stopCapture;
+window.stopCapture = stopCapture;
 window.captureStill = captureStill;
