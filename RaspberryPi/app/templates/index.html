@@ -44,9 +44,11 @@
           <button class="btn stop" onclick="stopCapture()">STOP RECORDING</button>
         </div>
 
-        <!-- Capture Image (NEW) -->
-        <div class="grid2" style="margin-top:10px">
+        <div class="grid2" style="margin-top:10px; align-items:center;">
           <button class="btn start" onclick="captureStill()">📸 Capture Image</button>
+          <div>
+            <span id="img_captured_badge" class="badge hide">Saved</span>
+          </div>
         </div>
       </div>
 

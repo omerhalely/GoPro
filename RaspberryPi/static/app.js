@@ -229,15 +229,32 @@ async function stopCapture() {
 // -------- Still capture (compact UI feedback) --------
 // -------- Still capture (compact UI feedback) --------
 async function captureStill() {
+  const badgeEl = document.getElementById('img_captured_badge');
+
   try {
     const res = await fetch('/capture_image', { method: 'POST' });
     const data = await res.json();
     if (!res.ok || !data.ok) {
       console.error('Capture failed', data);
-      // Optional: alert('Capture failed');
+      if (badgeEl) {
+        badgeEl.textContent = 'Failed';
+        badgeEl.classList.remove('hide'); badgeEl.classList.add('warn');
+        setTimeout(() => { badgeEl.classList.add('hide'); badgeEl.classList.remove('warn'); }, 2000);
+      }
+    } else {
+      if (badgeEl) {
+        badgeEl.textContent = 'Saved';
+        badgeEl.classList.remove('hide');
+        setTimeout(() => badgeEl.classList.add('hide'), 2000);
+      }
     }
   } catch (e) {
     console.error('Capture error', e);
+    if (badgeEl) {
+      badgeEl.textContent = 'Error';
+      badgeEl.classList.remove('hide'); badgeEl.classList.add('warn');
+      setTimeout(() => { badgeEl.classList.add('hide'); badgeEl.classList.remove('warn'); }, 2000);
+    }
   }
 }
 
