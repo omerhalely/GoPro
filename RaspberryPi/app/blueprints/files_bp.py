@@ -185,7 +185,14 @@ def delete_entry():
         body = {}
 
     rel = (body.get("path") or "").strip()
-    permanent = bool(body.get("permanent", False))
+    
+    # Check if target is already in .trash folder
+    # Normalize path separators to handle both forward and backward slashes
+    norm_rel = rel.replace("/", os.sep).replace("\\", os.sep)
+    is_in_trash = ".trash" in norm_rel.split(os.sep)
+    
+    # If explicitly requested permanent OR if it's already in trash, delete it forever
+    permanent = bool(body.get("permanent", False)) or is_in_trash
 
     if not rel:
         return jsonify({"ok": False, "error": "Missing 'path'"}), 400
@@ -204,11 +211,36 @@ def delete_entry():
 
     try:
         if permanent:
-            if os.path.isdir(target) and not os.path.islink(target):
-                shutil.rmtree(target)
+            # PROTECTED FOLDERS LOGIC
+            # Check if we are targeting a protected root folder
+            # We normalized norm_rel earlier
+            # If norm_rel has no separators, it is in the root
+            is_root_item = (os.sep not in norm_rel)
+            protected_folders = {".trash", "videos", "images"}
+            
+            if is_root_item and norm_rel in protected_folders:
+                if norm_rel == ".trash":
+                    # Special case: "Delete .trash" means "Empty .trash"
+                    # Delete all contents but keep the folder
+                    for item in os.listdir(target):
+                        item_path = os.path.join(target, item)
+                        try:
+                            if os.path.isdir(item_path) and not os.path.islink(item_path):
+                                shutil.rmtree(item_path)
+                            else:
+                                os.remove(item_path)
+                        except Exception:
+                            pass # best effort
+                    action = "emptied_trash"
+                else:
+                    return jsonify({"ok": False, "error": f"Cannot delete protected folder '{rel}'"}), 403
             else:
-                os.remove(target)
-            action = "deleted"
+                # Normal delete
+                if os.path.isdir(target) and not os.path.islink(target):
+                    shutil.rmtree(target)
+                else:
+                    os.remove(target)
+                action = "deleted"
         else:
             trash_dir = os.path.join(base, ".trash")
             os.makedirs(trash_dir, exist_ok=True)

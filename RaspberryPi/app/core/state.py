@@ -29,6 +29,9 @@ class AppState:
 
         # Files
         self.CURRENT_SAVE_DIR = config["DEFAULT_SAVE_DIR"]
+        os.makedirs(self.CURRENT_SAVE_DIR, exist_ok=True)
+        for d in [".trash", "videos", "images"]:
+            os.makedirs(os.path.join(self.CURRENT_SAVE_DIR, d), exist_ok=True)
 
         # Camera
         self._picam2 = None

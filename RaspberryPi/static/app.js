@@ -1083,6 +1083,7 @@ function setupWindowChips() {
   const list = document.getElementById('files-list');
   const foot = document.getElementById('files-foot');
   const bcEl = document.getElementById('files-bc');
+  const clearTrashBtn = document.getElementById('files-clear-trash');
 
   let currentPath = ""; // relative to CURRENT_SAVE_DIR
 
@@ -1115,6 +1116,16 @@ function setupWindowChips() {
 
   function iconForEntry(e) {
     if (e.type === 'dir') {
+      if (e.name === '.trash') {
+        return {
+          cls: 'folder',
+          html: `
+            <svg viewBox="0 0 24 24" fill="none" class="trash-icon" style="color:#ef4444;" aria-hidden="true">
+              <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2m-6 5v6m4-6v6" 
+                    stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>`
+        };
+      }
       return {
         cls: 'folder',
         html: `
@@ -1226,13 +1237,24 @@ function setupWindowChips() {
   function renderList(data) {
     currentPath = data.path || "";
 
+    // Show "Empty Trash" only if we are inside .trash
+    if (clearTrashBtn) {
+      if (currentPath === '.trash' || currentPath.replace('\\', '/') === '.trash') {
+        clearTrashBtn.classList.remove('hide');
+      } else {
+        clearTrashBtn.classList.add('hide');
+      }
+    }
+
     // Breadcrumbs
     const parts = currentPath.split('/').filter(Boolean);
     const crumbs = ['<span class="crumb" data-path="">root</span>'];
     let acc = "";
     for (let i = 0; i < parts.length; i++) {
       acc += (i ? "/" : "") + parts[i];
-      crumbs.push('<span class="sep">/</span><span class="crumb" data-path="' + acc + '">' + parts[i] + '</span>');
+      let label = parts[i];
+      if (label === '.trash') label = 'Trash';
+      crumbs.push('<span class="sep">/</span><span class="crumb" data-path="' + acc + '">' + label + '</span>');
     }
     bcEl.innerHTML = crumbs.join('');
 
@@ -1266,7 +1288,8 @@ function setupWindowChips() {
 
         const name = document.createElement('div');
         name.className = 'file-name';
-        name.textContent = e.name;
+        name.textContent = (e.name === '.trash') ? 'Trash' : e.name;
+        if (e.name === '.trash') name.style.color = '#ef4444'; // Red-ish for visibility
 
         const meta = document.createElement('div');
         meta.className = 'file-meta';
@@ -1283,16 +1306,22 @@ function setupWindowChips() {
         actions.style.gap = '6px';
         actions.style.marginLeft = '8px';
 
-        // Delete (both files & folders)
-        const delBtn = document.createElement('button');
-        delBtn.className = 'cfg-btn';
-        delBtn.textContent = 'Delete';
-        delBtn.title = 'Delete';
-        delBtn.addEventListener('click', (evt) => {
-          evt.stopPropagation();
-          confirmDelete(row.dataset.path, row.dataset.type);
-        });
-        actions.appendChild(delBtn);
+        // Protected names at root
+        const protectedNames = ['.trash', 'videos', 'images'];
+        const isProtected = atRoot && protectedNames.includes(e.name.toLowerCase());
+
+        // Delete (both files & folders) - ONLY if not protected
+        if (!isProtected) {
+          const delBtn = document.createElement('button');
+          delBtn.className = 'cfg-btn';
+          delBtn.textContent = 'Delete';
+          delBtn.title = 'Delete';
+          delBtn.addEventListener('click', (evt) => {
+            evt.stopPropagation();
+            confirmDelete(row.dataset.path, row.dataset.type);
+          });
+          actions.appendChild(delBtn);
+        }
 
         // Download (files only)
         if (e.type === 'file') {
@@ -1344,6 +1373,8 @@ function setupWindowChips() {
   });
   document.addEventListener('click', (e) => {
     if (!pop) return;
+    // Don't close if interacting with known modals (viewer, confirm)
+    if (e.target.closest('#viewer-modal') || e.target.closest('#confirm-modal')) return;
     if (!pop.contains(e.target) && e.target !== btn) closePop();
   });
 
@@ -1368,6 +1399,60 @@ function setupWindowChips() {
     if (!c) return;
     loadPath(c.dataset.path || '');
   });
+
+  function confirmEmptyTrash() {
+    const modal = document.getElementById('confirm-modal');
+    const titleEl = document.getElementById('confirm-title');
+    const msgEl = document.getElementById('confirm-message');
+    const okBtn = document.getElementById('confirm-ok');
+    const cancel = document.getElementById('confirm-cancel');
+
+    if (!modal) return;
+
+    titleEl.textContent = 'Empty Trash';
+    msgEl.textContent = 'Are you sure you want to permanently delete ALL files in the trash? This cannot be undone.';
+
+    // open modal
+    modal.classList.add('open');
+    modal.setAttribute('aria-hidden', 'false');
+
+    const onCancel = () => cleanup();
+    const onOk = async () => {
+      okBtn.disabled = true;
+      try {
+        // Delete .trash permanent=true
+        await deletePath('.trash', true);
+        // Navigate back to root
+        await loadPath('');
+      } catch (e) {
+        alert('Failed to empty trash: ' + e.message);
+      } finally {
+        okBtn.disabled = false;
+        cleanup();
+      }
+    };
+
+    function cleanup() {
+      modal.classList.remove('open');
+      modal.setAttribute('aria-hidden', 'true');
+      okBtn.removeEventListener('click', onOk);
+      cancel.removeEventListener('click', onCancel);
+      document.removeEventListener('keydown', onEsc);
+    }
+    function onEsc(e) { if (e.key === 'Escape') cleanup(); }
+
+    okBtn.addEventListener('click', onOk);
+    cancel.addEventListener('click', onCancel);
+    document.addEventListener('keydown', onEsc);
+  }
+
+  // Empty Trash Handler
+  if (clearTrashBtn) {
+    clearTrashBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      confirmEmptyTrash();
+    });
+  }
 })();
 
 function isImageName(name) {
