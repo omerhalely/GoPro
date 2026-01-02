@@ -164,14 +164,46 @@ const PanelController = (() => {
 // ======================================================
 // Status / Metrics / Charts
 // ======================================================
+// Recording timer state
+let _recTimer = null;
+let _recStart = 0;
+
+function _fmtDur(sec) {
+  if (sec < 0) sec = 0;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+}
+
+function _updateRecUI() {
+  const el = document.getElementById('status');
+  if (!el || !_recStart) return;
+  const diff = Math.floor((Date.now() / 1000) - _recStart);
+  el.innerHTML = '🟢 Recording <span class="mono">(' + _fmtDur(diff) + ')</span>';
+}
+
 function setStatus(running, sinceTs) {
   const el = document.getElementById('status');
   const cls = running ? 'ok' : 'warn';
   el.className = 'status ' + cls;
+
   if (running) {
-    const since = sinceTs ? new Date(sinceTs * 1000).toLocaleTimeString() : '—';
-    el.innerHTML = '🟢 Recording <span class="mono">(since ' + since + ')</span>';
+    if (_recStart !== sinceTs) {
+      _recStart = sinceTs;
+    }
+    // Ensure timer is running
+    if (!_recTimer) {
+      _updateRecUI();
+      _recTimer = setInterval(_updateRecUI, 1000);
+    }
   } else {
+    // Stop timer
+    if (_recTimer) {
+      clearInterval(_recTimer);
+      _recTimer = null;
+    }
+    _recStart = 0;
     el.innerHTML = '🔴 Not recording';
   }
 }
@@ -179,52 +211,33 @@ function setStatus(running, sinceTs) {
 async function refreshStatus() {
   const s = await api('/status');
   setStatus(s.running, s.started_ts);
-  document.getElementById('save_dir').textContent = s.save_dir ?? '—';
-  document.getElementById('disk_path').textContent = s.save_dir ?? '—';
+  // document.getElementById('save_dir') removed from DOM
+  const dp = document.getElementById('disk_path');
+  if (dp) dp.textContent = s.save_dir ?? '—';
 }
 
 async function startCapture() {
-  const res = await api('/start');
-  document.getElementById('log').textContent = JSON.stringify(res, null, 2);
+  await api('/start');
   refreshStatus();
 }
 
 async function stopCapture() {
-  const res = await api('/stop');
-  document.getElementById('log').textContent = JSON.stringify(res, null, 2);
+  await api('/stop');
   setTimeout(refreshStatus, 300);
 }
 
 // -------- Still capture (compact UI feedback) --------
+// -------- Still capture (compact UI feedback) --------
 async function captureStill() {
-  const logEl = document.getElementById('log');
-  const timeEl = document.getElementById('last_image_time');
-  const badgeEl = document.getElementById('img_captured_badge');
-
   try {
     const res = await fetch('/capture_image', { method: 'POST' });
     const data = await res.json();
-
     if (!res.ok || !data.ok) {
-      timeEl.textContent = '—';
-      badgeEl.textContent = 'Failed';
-      badgeEl.classList.remove('hide'); badgeEl.classList.add('warn');
-      setTimeout(() => { badgeEl.classList.add('hide'); badgeEl.classList.remove('warn'); }, 2000);
-      logEl.textContent = 'Capture failed';
-      return;
+      console.error('Capture failed', data);
+      // Optional: alert('Capture failed');
     }
-
-    timeEl.textContent = new Date().toLocaleTimeString();
-    badgeEl.textContent = 'Saved';
-    badgeEl.classList.remove('hide');
-    setTimeout(() => badgeEl.classList.add('hide'), 1800);
-    logEl.textContent = 'Image captured successfully.';
   } catch (e) {
-    timeEl.textContent = '—';
-    badgeEl.textContent = 'Error';
-    badgeEl.classList.remove('hide'); badgeEl.classList.add('warn');
-    setTimeout(() => { badgeEl.classList.add('hide'); badgeEl.classList.remove('warn'); }, 2000);
-    logEl.textContent = 'Error: ' + e;
+    console.error('Capture error', e);
   }
 }
 
